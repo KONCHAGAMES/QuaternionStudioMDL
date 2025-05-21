@@ -231,6 +231,7 @@ struct s_bonetable_t
 	Vector			pos;		// default pos
 	Vector			posscale;	// pos values scale
 	RadianEuler		rot;		// default pos
+	Quaternion qrot;		// default qrot
 	Vector			rotscale;	// rotation values scale
 	int				group;		// hitgroup
 	Vector			bmin, bmax;	// bounding box
@@ -406,6 +407,7 @@ struct s_bone_t
 {
 	Vector			pos;
 	RadianEuler		rot;
+	Quaternion qrot;
 };
 
 struct s_linearmove_t
