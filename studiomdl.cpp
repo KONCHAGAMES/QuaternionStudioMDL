@@ -2455,6 +2455,7 @@ void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 {
 	Vector pos;
 	RadianEuler rot;
+	Quaternion smdqrot;
 	char cmd[1024];
 	int index;
 	int	t = -99999999;
@@ -2467,7 +2468,7 @@ void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 
 	while ( GetLineInput() ) 
 	{
-		if ( sscanf( g_szLine, "%d %f %f %f %f %f %f", &index, &pos[0], &pos[1], &pos[2], &rot[0], &rot[1], &rot[2] ) == 7 )
+		if ( sscanf( g_szLine, "%d %f %f %f %f %f %f %f", &index, &pos[0], &pos[1], &pos[2], &smdqrot[0], &smdqrot[1], &smdqrot[2], &smdqrot[3] ) == 8)
 		{
 			if ( pAnim->startframe < 0 )
 			{
@@ -2476,9 +2477,11 @@ void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 
 			scale_vertex( pos );
 			VectorCopy( pos, pAnim->rawanim[t][index].pos );
-			VectorCopy( rot, pAnim->rawanim[t][index].rot );
+			//VectorCopy( rot, pAnim->rawanim[t][index].rot );
 
-			clip_rotations( rot ); // !!!
+			QuaternionCopy(smdqrot, pAnim->rawanim[t][index].qrot);
+
+			//clip_rotations( rot ); // !!!
 			continue;
 		}
 		
