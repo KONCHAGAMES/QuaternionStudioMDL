@@ -2443,6 +2443,14 @@ void Cmd_PreferFbx()
 ===============
 */
 
+void QuaternionCopy(Quaternion &src, Quaternion &des)
+{
+	des[0] = src[0];
+	des[1] = src[1];
+	des[2] = src[2];
+	des[3] = src[3];
+}
+
 void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 {
 	Vector pos;
