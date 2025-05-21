@@ -8201,7 +8201,297 @@ static void ProcessIKRules( )
 // CompressAnimations
 //-----------------------------------------------------------------------------
 
-static void CompressAnimations( )
+
+static void CompressAnimations()
+{
+	// 2025
+	// IDK HOW IT WORKS, BUT IT STILL USES EULERS
+
+
+	int i, j, k, n, m;
+
+
+	// !!!
+	//g_minSectionFrameLimit = 100000;
+	//g_animblocksize = 0;
+
+	// For g_bonetable[j].rot
+	RadianEuler j_rot;
+	// For g_panimation[i]->sanim[n][j].rot[k - 3];
+	RadianEuler n_j_rot;
+
+	// find scales for all bones
+	for (j = 0; j < g_numbones; j++)
+	{
+
+		// Temporary Implement for g_bonetable[j].rot (2025)
+		QuaternionAngles(g_bonetable[j].qrot, j_rot);
+
+		// printf("%s : ", g_bonetable[j].name );
+		for (k = 0; k < 6; k++)
+		{
+			float minv, maxv, scale;
+			float total_minv, total_maxv;
+
+			if (k < 3)
+			{
+				minv = -128.0;
+				maxv = 128.0;
+				total_maxv = total_minv = g_bonetable[j].pos[k];
+			}
+			else
+			{
+				minv = -M_PI / 8.0;
+				maxv = M_PI / 8.0;
+
+				// replace this to temp ang from Quaternion (2025)
+				//total_maxv = total_minv = g_bonetable[j].rot[k-3];
+
+
+				total_maxv = total_minv = j_rot[k - 3];
+			}
+
+			for (i = 0; i < g_numani; i++)
+			{
+				for (n = 0; n < g_panimation[i]->numframes; n++)
+				{
+					// for (v = g_panimation[i]->sanim[n][j].rot[k-3])
+					QuaternionAngles(g_panimation[i]->sanim[n][j].qrot, n_j_rot);
+
+					float v = 0.0f;
+					switch (k)
+					{
+					case 0:
+					case 1:
+					case 2:
+						if (g_panimation[i]->flags & STUDIO_DELTA)
+						{
+							v = g_panimation[i]->sanim[n][j].pos[k];
+						}
+						else
+						{
+							v = (g_panimation[i]->sanim[n][j].pos[k] - g_bonetable[j].pos[k]);
+
+							if (g_panimation[i]->sanim[n][j].pos[k] < total_minv)
+								total_minv = g_panimation[i]->sanim[n][j].pos[k];
+							if (g_panimation[i]->sanim[n][j].pos[k] > total_maxv)
+								total_maxv = g_panimation[i]->sanim[n][j].pos[k];
+						}
+						break;
+					case 3:
+					case 4:
+					case 5:
+						if (g_panimation[i]->flags & STUDIO_DELTA)
+						{
+							//v = g_panimation[i]->sanim[n][j].rot[k-3]; 
+							v = n_j_rot[k - 3];
+						}
+						else
+						{
+							v = (n_j_rot[k - 3] - j_rot[k - 3]);
+						}
+						while (v >= M_PI)
+							v -= M_PI * 2;
+						while (v < -M_PI)
+							v += M_PI * 2;
+						break;
+					}
+					if (v < minv)
+						minv = v;
+					if (v > maxv)
+						maxv = v;
+				}
+			}
+			if (minv < maxv)
+			{
+				if (-minv > maxv)
+				{
+					scale = minv / -32768.0;
+				}
+				else
+				{
+					scale = maxv / 32767;
+				}
+			}
+			else
+			{
+				scale = 1.0 / 32.0;
+			}
+
+			//printf("scale %f\n", scale);
+
+			// probably we dont need real scaling for saving proportions? (one value for all frames to prevent disagreements) (2025)
+			//scale = 1/32;
+			// 
+			//scale = 1/32;
+			scale = 0.01;
+
+			switch (k)
+			{
+			case 0:
+			case 1:
+			case 2:
+				g_bonetable[j].posscale[k] = scale;
+				g_bonetable[j].posrange[k] = 1;// total_maxv - total_minv;
+				break;
+			case 3:
+			case 4:
+			case 5:
+				// printf("(%.1f %.1f)", RAD2DEG(minv), RAD2DEG(maxv) );
+				// printf("(%.1f)", RAD2DEG(maxv-minv) );
+				g_bonetable[j].rotscale[k - 3] = scale;
+				break;
+			}
+			// printf("%.0f ", 1.0 / scale );
+		}
+		// printf("\n" );
+	}
+
+
+	// reduce animations
+
+
+	// вот эта хуйня отвечает за финальную запись анимаций в контексте simplify
+	for (i = 0; i < g_numani; i++)
+	{
+		s_animation_t* panim = g_panimation[i];
+		s_source_t* psource = panim->source;
+
+
+		s_sourceanim_t* RawAnim = &psource->m_Animations[0];
+		if (g_bCheckLengths)
+		{
+			printf("%s\n", panim->name);
+		}
+
+		// setup animation interior sections
+		int iSectionFrames = panim->numframes;
+		if (panim->numframes >= g_minSectionFrameLimit)
+		{
+			iSectionFrames = g_sectionFrames;
+			panim->sectionframes = g_sectionFrames;
+			panim->numsections = (int)(panim->numframes / panim->sectionframes) + 2;
+		}
+		else
+		{
+			panim->sectionframes = 0;
+			panim->numsections = 1;
+		}
+
+		RadianEuler psrcdata_rot;
+		RadianEuler g_bonetable_j;
+		for (int w = 0; w < panim->numsections; w++)
+		{
+			int iStartFrame = w * iSectionFrames;
+			int iEndFrame = (w + 1) * iSectionFrames;
+
+			iStartFrame = MIN(iStartFrame, panim->numframes - 1);
+			iEndFrame = MIN(iEndFrame, panim->numframes - 1);
+
+			// printf("%s : %d %d\n", panim->name, iStartFrame, iEndFrame );
+
+			for (j = 0; j < g_numbones; j++)
+		{
+
+				for (k = 0; k < 6; k++)
+				{
+					panim->anim[w][j].num[k] = 0;
+					panim->anim[w][j].data[k] = NULL;
+				}
+
+				// skip bones that are always procedural
+				if (g_bonetable[j].flags & BONE_ALWAYS_PROCEDURAL)
+				{
+					// panim->weight[j] = 0.0;
+					continue;
+				}
+
+				// skip bones that have no influence
+				if (panim->weight[j] < 0.001)
+					continue;
+
+				int checkmin[6], checkmax[6];
+				for (k = 0; k < 6; k++)
+				{
+					checkmin[k] = 32767;
+					checkmax[k] = -32768;
+				}
+
+				for (k = 0; k < 6; k++)
+				{
+					mstudioanimvalue_t* pcount, * pvalue;
+					float v;
+					short value[MAXSTUDIOANIMFRAMES];
+					mstudioanimvalue_t data[MAXSTUDIOANIMFRAMES];
+					
+					if (n == 0)
+						MdlError("no animation frames: \"%s\"\n", psource->filename);
+
+					// FIXME: this compression algorithm needs work
+
+					// initialize animation RLE block
+					memset(data, 0, sizeof(data));
+					pcount = data;
+					pvalue = pcount + 1;
+
+					pcount->num.valid = 1;
+					pcount->num.total = 1;
+					pvalue->value = value[0];
+					pvalue++;
+
+					// build a RLE of deltas from the default pose
+					for (m = 1; m < n; m++)
+					{
+						if (pcount->num.total == 255)
+						{
+							// chain too long, force a new entry
+							pcount = pvalue;
+							pvalue = pcount + 1;
+							pcount->num.valid++;
+							pvalue->value = value[m];
+							pvalue++;
+						}
+						// insert value if they're not equal, 
+						// or if we're not on a run and the run is less than 3 units
+						else if ((value[m] != value[m - 1])
+							|| ((pcount->num.total == pcount->num.valid) && ((m < n - 1) && value[m] != value[m + 1])))
+						{
+							if (pcount->num.total != pcount->num.valid)
+							{
+								//if (j == 0) printf("%d:%d   ", pcount->num.valid, pcount->num.total ); 
+								pcount = pvalue;
+								pvalue = pcount + 1;
+							}
+							pcount->num.valid++;
+							pvalue->value = value[m];
+							pvalue++;
+						}
+						pcount->num.total++;
+					}
+					if (j == 0) printf("%d:%d\n", pcount->num.valid, pcount->num.total ); 
+
+					panim->anim[w][j].num[k] = pvalue - data;
+					if (panim->anim[w][j].num[k] == 2 && value[0] == 0)
+					{
+						panim->anim[w][j].num[k] = 0;
+					}
+					else
+					{
+						panim->anim[w][j].data[k] = (mstudioanimvalue_t*)calloc(pvalue - data, sizeof(mstudioanimvalue_t));
+						memmove(panim->anim[w][j].data[k], data, (pvalue - data) * sizeof(mstudioanimvalue_t));
+					}
+				}				
+			}
+		}
+
+		if (panim->numsections == 1)
+		{
+			panim->sectionframes = 0;
+		}
+	}
+}
+
+static void CompressAnimations_OLD( )
 {
 	// 2025
 	// IDK HOW IT WORKS, BUT IT STILL USES EULERS
