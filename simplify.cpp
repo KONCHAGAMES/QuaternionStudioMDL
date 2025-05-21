@@ -8574,6 +8574,9 @@ static void CompressAnimations( )
 // Compress a single animation stream
 //-----------------------------------------------------------------------------
 
+
+// this probably will brake quaternions, but idk
+// not checked
 static void CompressSingle( s_animationstream_t *pStream )
 {
 	int k, n, m;
