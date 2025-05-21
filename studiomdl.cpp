@@ -4624,6 +4624,7 @@ bool ParseAnimationToken( s_animation_t *panim )
 		return true;
 	}
 	
+	/*
 	if ( !Q_stricmp( "angles", token ) )
 	{
 		GetToken( false );
@@ -4634,6 +4635,7 @@ bool ParseAnimationToken( s_animation_t *panim )
 		panim->rotation.z = DEG2RAD( verify_atof( token ) + 90.0f);
 		return true;
 	}
+	*/
 	
 	if ( !Q_stricmp( "scale", token ) )
 	{
