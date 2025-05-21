@@ -8201,7 +8201,6 @@ static void ProcessIKRules( )
 // CompressAnimations
 //-----------------------------------------------------------------------------
 
-
 static void CompressAnimations()
 {
 	// 2025
@@ -8223,132 +8222,16 @@ static void CompressAnimations()
 	// find scales for all bones
 	for (j = 0; j < g_numbones; j++)
 	{
-
-		// Temporary Implement for g_bonetable[j].rot (2025)
-		QuaternionAngles(g_bonetable[j].qrot, j_rot);
-
-		// printf("%s : ", g_bonetable[j].name );
 		for (k = 0; k < 6; k++)
 		{
-			float minv, maxv, scale;
-			float total_minv, total_maxv;
-
-			if (k < 3)
-			{
-				minv = -128.0;
-				maxv = 128.0;
-				total_maxv = total_minv = g_bonetable[j].pos[k];
-			}
-			else
-			{
-				minv = -M_PI / 8.0;
-				maxv = M_PI / 8.0;
-
-				// replace this to temp ang from Quaternion (2025)
-				//total_maxv = total_minv = g_bonetable[j].rot[k-3];
-
-
-				total_maxv = total_minv = j_rot[k - 3];
-			}
-
 			for (i = 0; i < g_numani; i++)
 			{
 				for (n = 0; n < g_panimation[i]->numframes; n++)
-				{
-					// for (v = g_panimation[i]->sanim[n][j].rot[k-3])
-					QuaternionAngles(g_panimation[i]->sanim[n][j].qrot, n_j_rot);
-
-					float v = 0.0f;
-					switch (k)
-					{
-					case 0:
-					case 1:
-					case 2:
-						if (g_panimation[i]->flags & STUDIO_DELTA)
-						{
-							v = g_panimation[i]->sanim[n][j].pos[k];
-						}
-						else
-						{
-							v = (g_panimation[i]->sanim[n][j].pos[k] - g_bonetable[j].pos[k]);
-
-							if (g_panimation[i]->sanim[n][j].pos[k] < total_minv)
-								total_minv = g_panimation[i]->sanim[n][j].pos[k];
-							if (g_panimation[i]->sanim[n][j].pos[k] > total_maxv)
-								total_maxv = g_panimation[i]->sanim[n][j].pos[k];
-						}
-						break;
-					case 3:
-					case 4:
-					case 5:
-						if (g_panimation[i]->flags & STUDIO_DELTA)
-						{
-							//v = g_panimation[i]->sanim[n][j].rot[k-3]; 
-							v = n_j_rot[k - 3];
-						}
-						else
-						{
-							v = (n_j_rot[k - 3] - j_rot[k - 3]);
-						}
-						while (v >= M_PI)
-							v -= M_PI * 2;
-						while (v < -M_PI)
-							v += M_PI * 2;
-						break;
-					}
-					if (v < minv)
-						minv = v;
-					if (v > maxv)
-						maxv = v;
+				{					
 				}
-			}
-			if (minv < maxv)
-			{
-				if (-minv > maxv)
-				{
-					scale = minv / -32768.0;
-				}
-				else
-				{
-					scale = maxv / 32767;
-				}
-			}
-			else
-			{
-				scale = 1.0 / 32.0;
-			}
-
-			//printf("scale %f\n", scale);
-
-			// probably we dont need real scaling for saving proportions? (one value for all frames to prevent disagreements) (2025)
-			//scale = 1/32;
-			// 
-			//scale = 1/32;
-			scale = 0.01;
-
-			switch (k)
-			{
-			case 0:
-			case 1:
-			case 2:
-				g_bonetable[j].posscale[k] = scale;
-				g_bonetable[j].posrange[k] = 1;// total_maxv - total_minv;
-				break;
-			case 3:
-			case 4:
-			case 5:
-				// printf("(%.1f %.1f)", RAD2DEG(minv), RAD2DEG(maxv) );
-				// printf("(%.1f)", RAD2DEG(maxv-minv) );
-				g_bonetable[j].rotscale[k - 3] = scale;
-				break;
-			}
-			// printf("%.0f ", 1.0 / scale );
+			}			
 		}
-		// printf("\n" );
 	}
-
-
-	// reduce animations
 
 
 	// вот эта хуйня отвечает за финальную запись анимаций в контексте simplify
@@ -8391,7 +8274,9 @@ static void CompressAnimations()
 			// printf("%s : %d %d\n", panim->name, iStartFrame, iEndFrame );
 
 			for (j = 0; j < g_numbones; j++)
-		{
+			{
+
+				QuaternionAngles(g_bonetable[j].qrot, g_bonetable_j);
 
 				for (k = 0; k < 6; k++)
 				{
@@ -8410,20 +8295,62 @@ static void CompressAnimations()
 				if (panim->weight[j] < 0.001)
 					continue;
 
-				int checkmin[6], checkmax[6];
-				for (k = 0; k < 6; k++)
-				{
-					checkmin[k] = 32767;
-					checkmax[k] = -32768;
-				}
-
+			
 				for (k = 0; k < 6; k++)
 				{
 					mstudioanimvalue_t* pcount, * pvalue;
 					float v;
 					short value[MAXSTUDIOANIMFRAMES];
 					mstudioanimvalue_t data[MAXSTUDIOANIMFRAMES];
-					
+
+					// find deltas from default pose
+					for (n = 0; n <= iEndFrame - iStartFrame; n++)
+					{
+						s_bone_t* psrcdata = &panim->sanim[n + iStartFrame][j];
+
+						QuaternionAngles(psrcdata->qrot, psrcdata_rot);
+
+
+
+						switch (k)
+						{
+						case 0: /* X Position */
+						case 1: /* Y Position */
+						case 2: /* Z Position */
+							if (panim->flags & STUDIO_DELTA)
+							{
+								value[n] = psrcdata->pos[k] / g_bonetable[j].posscale[k];
+								// pre-scale pos delta since format only has room for "overall" weight
+								float r = panim->posweight[j] / panim->weight[j];
+								value[n] *= r;
+							}
+							else
+							{
+								value[n] = (psrcdata->pos[k] - g_bonetable[j].pos[k]) / g_bonetable[j].posscale[k];
+							}
+
+							break;
+						case 3: /* X Rotation */
+						case 4: /* Y Rotation */
+						case 5: /* Z Rotation */
+							if (panim->flags & STUDIO_DELTA)
+							{
+								v = psrcdata_rot[k - 3];
+							}
+							else
+							{
+								v = (psrcdata_rot[k - 3] - g_bonetable_j[k - 3]);
+							}
+
+							while (v >= M_PI)
+								v -= M_PI * 2;
+							while (v < -M_PI)
+								v += M_PI * 2;
+
+							value[n] = v / g_bonetable[j].rotscale[k - 3];
+							break;
+						}						
+					}
 					if (n == 0)
 						MdlError("no animation frames: \"%s\"\n", psource->filename);
 
@@ -8468,7 +8395,7 @@ static void CompressAnimations()
 						}
 						pcount->num.total++;
 					}
-					if (j == 0) printf("%d:%d\n", pcount->num.valid, pcount->num.total ); 
+					//if (j == 0) printf("%d:%d\n", pcount->num.valid, pcount->num.total ); 
 
 					panim->anim[w][j].num[k] = pvalue - data;
 					if (panim->anim[w][j].num[k] == 2 && value[0] == 0)
@@ -8480,7 +8407,9 @@ static void CompressAnimations()
 						panim->anim[w][j].data[k] = (mstudioanimvalue_t*)calloc(pvalue - data, sizeof(mstudioanimvalue_t));
 						memmove(panim->anim[w][j].data[k], data, (pvalue - data) * sizeof(mstudioanimvalue_t));
 					}
-				}				
+					// printf("%d(%d) ", g_source[i]->panim[q]->numanim[j][k], n );
+				}
+				
 			}
 		}
 
@@ -8490,6 +8419,8 @@ static void CompressAnimations()
 		}
 	}
 }
+
+
 
 static void CompressAnimations_OLD( )
 {
