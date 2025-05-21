@@ -264,6 +264,7 @@ static void WriteBoneInfo( studiohdr_t *phdr )
 	AddToStringTable( phdr, &phdr->surfacepropindex, pSurfacePropName );
 	phdr->contents = GetDefaultContents();
 
+	
 	for (i = 0; i < g_numbones; i++) 
 	{
 		AddToStringTable( &pbone[i], &pbone[i].sznameindex, g_bonetable[i].name );
@@ -273,20 +274,23 @@ static void WriteBoneInfo( studiohdr_t *phdr )
 		pbone[i].physicsbone	= g_bonetable[i].physicsBoneIndex;
 		pbone[i].pos			= g_bonetable[i].pos;
 		pbone[i].rot			= g_bonetable[i].rot;
+//		pbone[i].qrot = g_bonetable[i].qrot;
 		pbone[i].posscale		= g_bonetable[i].posscale;
 		pbone[i].rotscale		= g_bonetable[i].rotscale;
 		MatrixInvert( g_bonetable[i].boneToPose, pbone[i].poseToBone );
 		pbone[i].qAlignment		= g_bonetable[i].qAlignment;
 
-		AngleQuaternion( RadianEuler( g_bonetable[i].rot[0], g_bonetable[i].rot[1], g_bonetable[i].rot[2] ), pbone[i].quat );
-		QuaternionAlign( pbone[i].qAlignment, pbone[i].quat, pbone[i].quat );
+		QuaternionCopy(g_bonetable[i].qrot, pbone[i].quat);
+		//AngleQuaternion( RadianEuler( g_bonetable[i].rot[0], g_bonetable[i].rot[1], g_bonetable[i].rot[2] ), pbone[i].quat );
+		//QuaternionAlign( pbone[i].qAlignment, pbone[i].quat, pbone[i].quat );
 
 		pSurfacePropName = GetSurfaceProp( g_bonetable[i].name );
 		AddToStringTable( &pbone[i], &pbone[i].surfacepropidx, pSurfacePropName );
 		pbone[i].contents = GetContents( g_bonetable[i].name );
 	}
 
-	pData += g_numbones * sizeof( mstudiobone_t );
+	// hack for new qrot field on mstudiobone_t
+	pData += g_numbones * sizeof( mstudiobone_t ) ;
 	ALIGN4( pData );
 
 	// save procedural bone info
@@ -1216,7 +1220,8 @@ void WriteRLEAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destanimd
 			if (psrcdata->num[3] != 0 || psrcdata->num[4] != 0 || psrcdata->num[5] != 0)
 			{
 				Quaternion q;
-				AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
+				//AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
+				QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
 				*((Quaternion64 *)pData) = q;
 				pData += sizeof( Quaternion64 );
 				rawanimbytes += sizeof( Quaternion64 );
@@ -1344,7 +1349,8 @@ void WriteFrameAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destani
 		{
 			flag[j] |= STUDIO_FRAME_CONST_ROT2;
 			Quaternion q;
-			AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
+			QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
+			//AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
 			*((Quaternion48S *)pData) = q;
 			pData += sizeof( Quaternion48S );
 		}
@@ -1423,8 +1429,10 @@ void WriteFrameAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destani
 		{
 			if (flag[j] & STUDIO_FRAME_ANIM_ROT2)
 			{
+				
 				Quaternion q;
-				AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
+				QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
+				//AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
 				*((Quaternion48S *)pData) = q;
 				pData += sizeof( Quaternion48S );
 			}
@@ -1928,6 +1936,8 @@ static byte *WriteAnimations( byte *pData, byte *pStart, studiohdr_t *phdr )
 				pmove[j].motionflags	= anim->piecewisemove[j].flags;
 				pmove[j].v0				= anim->piecewisemove[j].v0;
 				pmove[j].v1				= anim->piecewisemove[j].v1;
+				
+				// хз че это мне ваш этот интернет н*** не нужон.
 				pmove[j].angle			= RAD2DEG( anim->piecewisemove[j].rot[2] );
 				VectorCopy( anim->piecewisemove[j].vector, pmove[j].vector );
 				VectorCopy( anim->piecewisemove[j].pos, pmove[j].position );
@@ -2064,7 +2074,8 @@ static byte *WriteAnimations( byte *pData, byte *pStart, studiohdr_t *phdr )
 					for (int n = 0; n < destanim->zeroframecount; n++)
 					{
 						Quaternion q;
-						AngleQuaternion( anim->sanim[destanim->zeroframespan*n][j].rot, q );
+						QuaternionCopy(anim->sanim[destanim->zeroframespan * n][j].qrot, q);
+						//AngleQuaternion( anim->sanim[destanim->zeroframespan*n][j].rot, q );
 						*((Quaternion64 *)pData) = q;
 						pData += sizeof( Quaternion64 );
 					}
@@ -2074,7 +2085,8 @@ static byte *WriteAnimations( byte *pData, byte *pStart, studiohdr_t *phdr )
 					for (int n = 0; n < destanim->zeroframecount; n++)
 					{
 						Quaternion q;
-						AngleQuaternion( anim->sanim[destanim->zeroframespan*n][j].rot, q );
+						//AngleQuaternion( anim->sanim[destanim->zeroframespan*n][j].rot, q );
+						QuaternionCopy(anim->sanim[destanim->zeroframespan * n][j].qrot, q);
 						*((Quaternion32 *)pData) = q;
 						pData += sizeof( Quaternion32 );
 					}

@@ -1,4 +1,4 @@
-//===== Copyright � 1996-2005, Valve Corporation, All rights reserved. ======//
+﻿//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // studiomdl.c: generates a studio .mdl file from a .qc script
 // models/<scriptname>.mdl.
@@ -309,10 +309,13 @@ void processAnimations()
 					if (bone != -1)
 					{
 						Vector vecPos = Vector( pcmd->u.forceboneposrot.pos[0], pcmd->u.forceboneposrot.pos[1], pcmd->u.forceboneposrot.pos[2] );
-						QAngle angRot = QAngle( pcmd->u.forceboneposrot.rot[0], pcmd->u.forceboneposrot.rot[1], pcmd->u.forceboneposrot.rot[2] );
+						Quaternion quat = Quaternion(pcmd->u.forceboneposrot.qrot[0], pcmd->u.forceboneposrot.qrot[1], pcmd->u.forceboneposrot.qrot[2], pcmd->u.forceboneposrot.qrot[3]);
+						//QAngle angRot = QAngle( pcmd->u.forceboneposrot.rot[0], pcmd->u.forceboneposrot.rot[1], pcmd->u.forceboneposrot.rot[2] );
 
 						matrix3x4_t matRot;
-						AngleMatrix( angRot, matRot );
+						//AngleMatrix( angRot, matRot );
+
+						QuaternionMatrix(quat, matRot);
 
 						for ( int i=0; i<panim->numframes; i++ )
 						{
@@ -324,7 +327,8 @@ void processAnimations()
 								int nParent = g_bonetable[bone].parent;
 								if ( nParent == -1 || pcmd->u.forceboneposrot.bRotIsLocal )
 								{
-									panim->sanim[i][bone].rot = RadianEuler( angRot );
+									//panim->sanim[i][bone].rot = RadianEuler( angRot );
+									QuaternionCopy(quat, panim->sanim[i][bone].qrot);
 								}
 								else
 								{
@@ -337,10 +341,11 @@ void processAnimations()
 									matrix3x4_t local;
 									ConcatTransforms( worldToBone, matRot, local );
 
-									RadianEuler angTemp;
-									MatrixAngles( local, angTemp );
+									//RadianEuler angTemp;
+									Quaternion qTemp;
+									MatrixQuaternion( local, qTemp);
 
-									panim->sanim[i][bone].rot = angTemp;
+									panim->sanim[i][bone].qrot = qTemp;
 								}
 							}
 						}
@@ -385,16 +390,17 @@ void processAnimations()
 						for ( int n=g_numbones-1; n>=0; n-- )
 						{
 							Vector posTemp;
-							RadianEuler rotTemp;
+							//RadianEuler rotTemp;
+							Quaternion rotTemp;
 
 							VectorCopy( panim->sanim[i][n].pos, posTemp );
-							VectorCopy( panim->sanim[i][n].rot, rotTemp );
+							QuaternionCopy( panim->sanim[i][n].qrot, rotTemp );
 
 							VectorCopy( panim->sanim[iCountFrames-i][n].pos, panim->sanim[i][n].pos );
-							VectorCopy( panim->sanim[iCountFrames-i][n].rot, panim->sanim[i][n].rot );
+							QuaternionCopy( panim->sanim[iCountFrames-i][n].qrot, panim->sanim[i][n].qrot );
 
 							VectorCopy( posTemp, panim->sanim[iCountFrames-i][n].pos );
-							VectorCopy( rotTemp, panim->sanim[iCountFrames-i][n].rot );
+							QuaternionCopy( rotTemp, panim->sanim[iCountFrames-i][n].qrot );
 						}
 					}
 				}
@@ -411,7 +417,7 @@ void processAnimations()
 						for ( int n=g_numbones-1; n>=0; n-- )
 						{
 							VectorCopy( pAppendAnimation->sanim[i-iPrevNumFrames][n].pos, panim->sanim[i][n].pos );
-							VectorCopy( pAppendAnimation->sanim[i-iPrevNumFrames][n].rot, panim->sanim[i][n].rot );
+							QuaternionCopy( pAppendAnimation->sanim[i-iPrevNumFrames][n].qrot, panim->sanim[i][n].qrot );
 						}
 					}
 				}
@@ -554,6 +560,102 @@ void ConvertToAnimLocal( s_animation_t *panim, Vector &pos, QAngle &angles )
 // iRefFrame	- frame of reference animation to match
 //-----------------------------------------------------------------------------
 
+
+
+void AxisAngleToQuaternion(const Vector& axis, float angle, Quaternion& outQ)
+{
+	Vector normAxis = axis;
+	float length = normAxis.Length();
+	if (length > 0.0001f)
+	{
+		normAxis /= length;
+	}
+	else
+	{
+		outQ.x = 0.0f;
+		outQ.y = 0.0f;
+		outQ.z = 0.0f;
+		outQ.w = 1.0f;
+		return;
+	}
+
+	float halfAngle = angle * 0.5f;
+	float sinHalf = sinf(halfAngle);
+
+	outQ.x = normAxis.x * sinHalf;
+	outQ.y = normAxis.y * sinHalf;
+	outQ.z = normAxis.z * sinHalf;
+	outQ.w = cosf(halfAngle);
+}
+
+void QuaternionToAxisAngle(const Quaternion& q, Vector& outAxis, float& outAngle)
+{
+	Quaternion normQ = q;
+	QuaternionNormalize(normQ);
+
+	outAngle = 2.0f * acosf(normQ.w);
+
+	if (outAngle < 0.0001f)
+	{
+		outAxis.x = 1.0f;
+		outAxis.y = 0.0f;
+		outAxis.z = 0.0f;
+		outAngle = 0.0f;
+		return;
+	}
+
+	float sinHalf = sinf(outAngle * 0.5f);
+	if (fabs(sinHalf) > 0.0001f)
+	{
+		outAxis.x = normQ.x / sinHalf;
+		outAxis.y = normQ.y / sinHalf;
+		outAxis.z = normQ.z / sinHalf;
+	}
+	else
+	{
+		outAxis.x = 1.0f;
+		outAxis.y = 0.0f;
+		outAxis.z = 0.0f;
+	}
+
+	float length = outAxis.Length();
+	if (length > 0.0001f)
+	{
+		outAxis /= length;
+	}
+	else
+	{
+		outAxis.x = 1.0f;
+		outAxis.y = 0.0f;
+		outAxis.z = 0.0f;
+	}
+
+	if (outAngle < 0.0f) outAngle += 2.0f * M_PI;
+}
+
+Quaternion QuaternionAxisProject(const Quaternion& q, const Vector& axis)
+{
+	Vector qAxis;
+	float angle;
+
+
+	//QuaternionNormalize(q);
+
+	QuaternionToAxisAngle(q, qAxis, angle);
+
+	// Проецируем ось вращения на целевую ось
+	float projection = DotProduct(qAxis, axis);
+	Vector projAxis = axis * projection;
+	if (projAxis.LengthSqr() > 0)
+		VectorNormalize(projAxis);
+	//projAxis.Normalize();
+
+// Создаём новый кватернион с проекцией
+	Quaternion result;
+	AxisAngleToQuaternion(projAxis, angle * fabs(projection), result);
+	return result;
+}
+
 void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame, int iEndFrame, int iSrcFrame, s_animation_t *pRefAnim, int iRefFrame /* , Vector pos, QAngle angles */ )
 {
 	int j, k;
@@ -582,6 +684,8 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 		return;
 	}
 
+	MdlWarning("Trying to use deprecated extractLinearMotion\n");
+
 	float fFrame = (iStartFrame + iSrcFrame) / 2.0;
 	int iMidFrame = (int)fFrame;
 	float s = fFrame - iMidFrame;
@@ -599,72 +703,56 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 
 	if (motiontype & (STUDIO_LXR | STUDIO_LYR | STUDIO_LZR))
 	{
-		Quaternion q0;
-		Quaternion q1;
-		Quaternion q2;
+		Quaternion q0 = pRefAnim->sanim[iRefFrame][iRootIndex].qrot; // Используем qrot
+		Quaternion q1 = panim->sanim[iMidFrame][iRootIndex].qrot;
+		Quaternion q2 = panim->sanim[iSrcFrame][iRootIndex].qrot;
 
-		AngleQuaternion( pRefAnim->sanim[iRefFrame][iRootIndex].rot, q0 );
-		AngleQuaternion( panim->sanim[iMidFrame][iRootIndex].rot, q1 ); // only used for rotation checking
-		AngleQuaternion( panim->sanim[iSrcFrame][iRootIndex].rot, q2 );
+		Quaternion deltaQ1, deltaQ2;
+		QuaternionMA(q1, -1, q0, deltaQ1); // deltaQ1 = q1 * q0⁻¹
+		QuaternionMA(q2, -1, q0, deltaQ2); // deltaQ2 = q2 * q0⁻¹
 
-		Quaternion deltaQ1;
-		QuaternionMA( q1, -1, q0, deltaQ1 );
-		Quaternion deltaQ2;
-		QuaternionMA( q2, -1, q0, deltaQ2 );
+		Quaternion finalQ = quat_identity;
 
-		// FIXME: this is still wrong, but it should be slightly more robust
-		RadianEuler a3;
+		QuaternionNormalize(deltaQ1);
+		QuaternionNormalize(deltaQ2);
+		QuaternionNormalize(finalQ);
+
+
+
+		// Probably this replacements are REAL shit? IDK. (2025)
 		if (motiontype & STUDIO_LXR)
 		{
-			Quaternion q4;
-			q4.Init( deltaQ2.x, 0, 0, deltaQ2.w );
-			QuaternionNormalize( q4 );
-			QuaternionAngles( q4, a3 );
-			rot.x = a3.x;
+
+			Quaternion qX = QuaternionAxisProject(deltaQ2, Vector(1, 0, 0));
+			finalQ = finalQ * qX;
 		}
 		if (motiontype & STUDIO_LYR)
 		{
-			Quaternion q4;
-			q4.Init( 0, deltaQ2.y, 0, deltaQ2.w );
-			QuaternionNormalize( q4 );
-			QuaternionAngles( q4, a3 );
-			rot.y = a3.y;
+			Quaternion qY = QuaternionAxisProject(deltaQ2, Vector(0, 1, 0));
+			finalQ = finalQ * qY;
 		}
 		if (motiontype & STUDIO_LZR)
-		{
-			Quaternion q4;
-			q4.Init( 0, 0, deltaQ2.z, deltaQ2.w );
-			QuaternionNormalize( q4 );
-			QuaternionAngles( q4, a3 );
-
-			// check for possible rotations >180 degrees by looking at the 
-			// halfway point and seeing if it's rotating a different direction
-			// than the shortest path to the end point
-			Quaternion q5;
-			RadianEuler a5;
-			q5.Init( 0, 0, deltaQ1.z, deltaQ1.w );
-			QuaternionNormalize( q5 );
-			QuaternionAngles( q5, a5 );
-			if (a3.z > M_PI) a5.z -= 2*M_PI;
-			if (a3.z < -M_PI) a5.z += 2*M_PI;
-			if (a5.z > M_PI) a5.z -= 2*M_PI;
-			if (a5.z < -M_PI) a5.z += 2*M_PI;
-			if (a5.z > M_PI/4 && a3.z < 0)
-			{
-				a3.z += 2*M_PI;
+		{			
+			Quaternion qZ = QuaternionAxisProject(deltaQ2, Vector(0, 0, 1));
+			Quaternion qMid = QuaternionAxisProject(deltaQ1, Vector(0, 0, 1));
+			
+			if (qMid.w < 0) {
+				QuaternionNormalize(qMid);
 			}
-			if (a5.z < -M_PI/4 && a3.z > 0)
-			{
-				a3.z -= 2*M_PI;
-			}
-
-			rot.z = a3.z;
+			
+			finalQ = finalQ * qZ;
 		}
+
+		// Построение матрицы из кватерниона
+		matrix3x4_t adjmatrix;
+		QuaternionMatrix(finalQ, adjmatrix);
+
+		// Применение вращения к позиции
+			
 	}
 
 	// find movement
 	Vector p0;
-	AngleMatrix(rot, adjmatrix );
 	VectorRotate( pRefAnim->sanim[iRefFrame][iRootIndex].pos, adjmatrix, p0 );
 
 	Vector p2 = panim->sanim[iSrcFrame][iRootIndex].pos;
@@ -734,7 +822,11 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 	}
 
 	Vector	adjpos;
-	RadianEuler	adjangle;
+	
+	// 2025 idk 
+	Quaternion adjquat;
+	MatrixQuaternion(adjmatrix, adjquat);
+
 	matrix3x4_t bonematrix;
 	for (j = 0; j < numframes; j++)
 	{	
@@ -751,9 +843,9 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 			VectorScale( v, v0 * t + 0.5 * (v1 - v0) * t * t, adjpos );
 		}
 
-		VectorScale( rot, t, adjangle );
 
-		AngleMatrix( adjangle, adjpos, adjmatrix );
+		QuaternionScale(adjquat, t, adjquat);
+		QuaternionMatrix(adjquat, adjpos, adjmatrix );
 		MatrixInvert( adjmatrix, adjmatrix );
 
 		for (k = 0; k < g_numbones; k++)
@@ -764,10 +856,10 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 
 				// printf(" %.1f %.1f %.1f\n", adjpos[0], adjpos[1], adjpos[2] );
 
-				AngleMatrix( panim->sanim[j+iStartFrame][k].rot, panim->sanim[j+iStartFrame][k].pos, bonematrix );
+				QuaternionMatrix( panim->sanim[j+iStartFrame][k].qrot, panim->sanim[j+iStartFrame][k].pos, bonematrix );
 				ConcatTransforms( adjmatrix, bonematrix, bonematrix );
 
-				MatrixAngles( bonematrix, panim->sanim[j+iStartFrame][k].rot, panim->sanim[j+iStartFrame][k].pos );
+				MatrixQuaternion( bonematrix, panim->sanim[j+iStartFrame][k].qrot, panim->sanim[j+iStartFrame][k].pos );
 				// printf("%d : %.1f %.1f %.1f\n", j, panim->sanim[j+iStartFrame][k].pos.x, panim->sanim[j+iStartFrame][k].pos.y, RAD2DEG( panim->sanim[j+iStartFrame][k].rot.z ) );
 			}
 		}
@@ -779,9 +871,9 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 		{
 			if (g_bonetable[k].parent == -1)
 			{
-				AngleMatrix( panim->sanim[j+iStartFrame][k].rot, panim->sanim[j+iStartFrame][k].pos, bonematrix );
+				QuaternionMatrix( panim->sanim[j+iStartFrame][k].qrot, panim->sanim[j+iStartFrame][k].pos, bonematrix );
 				ConcatTransforms( adjmatrix, bonematrix, bonematrix );
-				MatrixAngles( bonematrix, panim->sanim[j+iStartFrame][k].rot, panim->sanim[j+iStartFrame][k].pos );
+				MatrixQuaternion( bonematrix, panim->sanim[j+iStartFrame][k].qrot, panim->sanim[j+iStartFrame][k].pos );
 			}
 		}
 	}
@@ -797,16 +889,16 @@ void extractLinearMotion( s_animation_t *panim, int motiontype, int iStartFrame,
 	// concatinate xforms
 	if (panim->numpiecewisekeys > 1)
 	{
-		AngleMatrix( adjangle, adjpos, bonematrix );
-		AngleMatrix( pmove[-1].rot, pmove[-1].pos, adjmatrix );
+		QuaternionMatrix(adjquat, adjpos, bonematrix);
+		QuaternionMatrix( pmove[-1].qrot, pmove[-1].pos, adjmatrix );
 		ConcatTransforms( adjmatrix, bonematrix, bonematrix );
-		MatrixAngles( bonematrix, pmove[0].rot, pmove[0].pos );
+		MatrixQuaternion( bonematrix, pmove[0].qrot, pmove[0].pos );
 		pmove->vector = pmove[0].pos - pmove[-1].pos;
 	}
 	else
 	{
 		VectorCopy( adjpos, pmove[0].pos );
-		VectorCopy( adjangle, pmove[0].rot );
+		QuaternionCopy(adjquat, pmove[0].qrot );
 		pmove->vector = pmove[0].pos;
 	}
 	VectorNormalize( pmove->vector );
@@ -918,7 +1010,7 @@ void fixupMissingFrame( s_animation_t *panim )
 	{
 		VectorSubtract( panim->sanim[j-1][k].pos, panim->sanim[0][k].pos, deltapos );
 		VectorMA( panim->sanim[j-1][k].pos, scale, deltapos, panim->sanim[j][k].pos );
-		VectorCopy( panim->sanim[0][k].rot, panim->sanim[j][k].rot );
+		QuaternionCopy( panim->sanim[0][k].qrot, panim->sanim[j][k].qrot );
 	}
 
 	panim->numframes = j + 1;
@@ -962,25 +1054,25 @@ void realignLooping( s_animation_t *panim )
 			int n;
 
 			Vector	shiftpos[MAXSTUDIOANIMFRAMES];
-			RadianEuler	shiftrot[MAXSTUDIOANIMFRAMES];
+			Quaternion shiftrot[MAXSTUDIOANIMFRAMES];
 
 			// printf("%f %f %f\n", motion[0], motion[1], motion[2] );
 			for (j = 0; j < panim->numframes - 1; j++)
 			{	
 				n = (j + panim->looprestart) % (panim->numframes - 1);
 				VectorCopy( panim->sanim[n][k].pos, shiftpos[j] );
-				VectorCopy( panim->sanim[n][k].rot, shiftrot[j] );
+				QuaternionCopy( panim->sanim[n][k].qrot, shiftrot[j] );
 			}
 
 			n = panim->looprestart;
 			j = panim->numframes - 1;
 			VectorCopy( panim->sanim[n][k].pos, shiftpos[j] );
-			VectorCopy( panim->sanim[n][k].rot, shiftrot[j] );
+			QuaternionCopy( panim->sanim[n][k].qrot, shiftrot[j] );
 
 			for (j = 0; j < panim->numframes; j++)
 			{	
 				VectorCopy( shiftpos[j], panim->sanim[j][k].pos );
-				VectorCopy( shiftrot[j], panim->sanim[j][k].rot );
+				QuaternionCopy( shiftrot[j], panim->sanim[j][k].qrot );
 			}
 		}
 	}
@@ -988,6 +1080,9 @@ void realignLooping( s_animation_t *panim )
 
 void extractUnusedMotion( s_animation_t *panim )
 {
+	MdlWarning("Trying to use deprecated extractUnusedMotion (Disabled)\n");
+
+	/*
 	int j, k;
 
 	int type = panim->motiontype;
@@ -996,13 +1091,14 @@ void extractUnusedMotion( s_animation_t *panim )
 	{
 		if (g_bonetable[k].parent == -1)
 		{
-			float	motion[6];
+			float	motion[7];
 			motion[0] = panim->sanim[0][k].pos[0];
 			motion[1] = panim->sanim[0][k].pos[1];
 			motion[2] = panim->sanim[0][k].pos[2];
 			motion[3] = panim->sanim[0][k].rot[0];
 			motion[4] = panim->sanim[0][k].rot[1];
 			motion[5] = panim->sanim[0][k].rot[2];
+			motion[6] = panim->sanim[0][k].rot[3];
 
 			for (j = 0; j < panim->numframes; j++)
 			{	
@@ -1021,6 +1117,7 @@ void extractUnusedMotion( s_animation_t *panim )
 			}
 		}
 	}
+	*/
 }
 
 //-----------------------------------------------------------------------------
@@ -1040,7 +1137,7 @@ void processMatch( s_animation_t *psrc, s_animation_t *pdest, int flags )
 	{
 		if (flags)
 			VectorSubtract( psrc->sanim[0][k].pos, pdest->sanim[0][k].pos, delta_pos[k] );
-		QuaternionSM( -1, Quaternion( pdest->sanim[0][k].rot ), Quaternion( psrc->sanim[0][k].rot ), delta_q[k] );
+		QuaternionSM( -1, pdest->sanim[0][k].qrot, psrc->sanim[0][k].qrot, delta_q[k] );
 	}
 
 	// printf("%.2f %.2f %.2f\n", adj.x, adj.y, adj.z );
@@ -1052,7 +1149,7 @@ void processMatch( s_animation_t *psrc, s_animation_t *pdest, int flags )
 			{
 				if (flags)
 					VectorAdd( pdest->sanim[j][k].pos, delta_pos[k], pdest->sanim[j][k].pos );
-				QuaternionMAAngles( Quaternion( pdest->sanim[j][k].rot ), 1.0, delta_q[k], pdest->sanim[j][k].rot );
+				QuaternionMA( pdest->sanim[j][k].qrot, 1.0, delta_q[k], pdest->sanim[j][k].qrot );
 			}
 		}	
 	}
@@ -1137,7 +1234,7 @@ void worldspaceBlend( s_animation_t *psrc, s_animation_t *pdest, int srcframe, i
 			n = g_bonetable[k].parent;
 			if (n == -1)
 			{
-				MatrixAngles( destBoneToWorld[k], pdest->sanim[j][k].rot, tmp );
+				MatrixQuaternion( destBoneToWorld[k], pdest->sanim[j][k].qrot, tmp );
 
 				// FIXME: it's not clear if this should blend position or not....it'd be 
 				// better if weight lists could do quat and pos independently. 
@@ -1149,7 +1246,7 @@ void worldspaceBlend( s_animation_t *psrc, s_animation_t *pdest, int srcframe, i
 
 				matrix3x4_t local;
 				ConcatTransforms( worldToBone, destBoneToWorld[k], local );
-				MatrixAngles( local, pdest->sanim[j][k].rot, tmp );
+				MatrixQuaternion( local, pdest->sanim[j][k].qrot, tmp );
 
 				// blend bone lengths (local space)
 				pdest->sanim[j][k].pos = Lerp( pdest->posweight[k], pdest->sanim[j][k].pos, srcPos[k] );
@@ -1251,9 +1348,9 @@ void processAutoorigin( s_animation_t *psrc, s_animation_t *pdest, int motiontyp
 			for (j = 0; j < pdest->numframes; j++)
 			{
 				matrix3x4_t bonematrix;
-				AngleMatrix( pdest->sanim[j][k].rot, pdest->sanim[j][k].pos, bonematrix );
+				QuaternionMatrix( pdest->sanim[j][k].qrot, pdest->sanim[j][k].pos, bonematrix );
 				ConcatTransforms( adjmatrix, bonematrix, bonematrix );
-				MatrixAngles( bonematrix, pdest->sanim[j][k].rot, pdest->sanim[j][k].pos );
+				MatrixQuaternion( bonematrix, pdest->sanim[j][k].qrot, pdest->sanim[j][k].pos );
 			}
 		}
 	}	
@@ -1278,7 +1375,7 @@ void subtractBaseAnimations( s_animation_t *psrc, s_animation_t *pdest, int srcf
 	for (k = 0; k < g_numbones; k++)
 	{
 		VectorCopy( psrc->sanim[srcframe][k].pos, src[k].pos );
-		VectorCopy( psrc->sanim[srcframe][k].rot, src[k].rot );
+		QuaternionCopy( psrc->sanim[srcframe][k].qrot, src[k].qrot );
 	}
 
 	for (k = 0; k < g_numbones; k++)
@@ -1302,13 +1399,13 @@ void subtractBaseAnimations( s_animation_t *psrc, s_animation_t *pdest, int srcf
 				if (flags & STUDIO_POST)
 				{
 					// find pdest in src's reference frame  
-					QuaternionSMAngles( -1, Quaternion( src[k].rot ), Quaternion( pdest->sanim[j][k].rot ), pdest->sanim[j][k].rot );
+					QuaternionSM( -1, src[k].qrot, pdest->sanim[j][k].qrot, pdest->sanim[j][k].qrot );
 					VectorSubtract( pdest->sanim[j][k].pos, src[k].pos, pdest->sanim[j][k].pos );
 				}
 				else
 				{
 					// find src in pdest's reference frame?
-					QuaternionMAAngles( Quaternion( pdest->sanim[j][k].rot ), -1, Quaternion( src[k].rot ), pdest->sanim[j][k].rot );
+					QuaternionMA( pdest->sanim[j][k].qrot, -1, src[k].qrot, pdest->sanim[j][k].qrot );
 					VectorSubtract( src[k].pos, pdest->sanim[j][k].pos, pdest->sanim[j][k].pos );
 				}
 
@@ -1380,9 +1477,9 @@ void linearDelta( s_animation_t *psrc, s_animation_t *pdest, int srcframe, int f
 	for (k = 0; k < g_numbones; k++)
 	{
 		VectorCopy( psrc->sanim[0][k].pos, src0[k].pos );
-		VectorCopy( psrc->sanim[0][k].rot, src0[k].rot );
+		QuaternionCopy( psrc->sanim[0][k].qrot, src0[k].qrot );
 		VectorCopy( psrc->sanim[srcframe][k].pos, src1[k].pos );
-		VectorCopy( psrc->sanim[srcframe][k].rot, src1[k].rot );
+		QuaternionCopy( psrc->sanim[srcframe][k].qrot, src1[k].qrot );
 	}
 
 	if (pdest->numframes == 1)
@@ -1422,19 +1519,19 @@ void linearDelta( s_animation_t *psrc, s_animation_t *pdest, int srcframe, int f
 				s_bone_t src;
 
 				src.pos = src0[k].pos * (1 - s) + src1[k].pos * s;
-				QuaternionSlerp( src0[k].rot, src1[k].rot, s, src.rot );
+				QuaternionSlerp( src0[k].qrot, src1[k].qrot, s, src.qrot );
 
 				// calc differences between two rotations
 				if (flags & STUDIO_AL_POST)
 				{
 					// find pdest in src's reference frame  
-					QuaternionSMAngles( -1, Quaternion( src.rot ), Quaternion( pdest->sanim[j][k].rot ), pdest->sanim[j][k].rot );
+					QuaternionSM( -1, src.qrot, pdest->sanim[j][k].qrot, pdest->sanim[j][k].qrot );
 					VectorSubtract( pdest->sanim[j][k].pos, src.pos, pdest->sanim[j][k].pos );
 				}
 				else
 				{
 					// find src in pdest's reference frame?
-					QuaternionMAAngles( Quaternion( pdest->sanim[j][k].rot ), -1, Quaternion( src.rot ), pdest->sanim[j][k].rot );
+					QuaternionMA( pdest->sanim[j][k].qrot, -1, src.qrot, pdest->sanim[j][k].qrot );
 					VectorSubtract( src.pos, pdest->sanim[j][k].pos, pdest->sanim[j][k].pos );
 				}
 
@@ -1512,7 +1609,7 @@ void createDerivative( s_animation_t *panim, float scale )
 	for (k = 0; k < g_numbones; k++)
 	{
 		VectorCopy( panim->sanim[j][k].pos, orig[k].pos );
-		VectorCopy( panim->sanim[j][k].rot, orig[k].rot );
+		QuaternionCopy( panim->sanim[j][k].qrot, orig[k].qrot );
 	}
 
 	for (j = panim->numframes - 1; j >= 0; j--)
@@ -1548,16 +1645,18 @@ void createDerivative( s_animation_t *panim, float scale )
 				*/
 
 				// find pdest in src's reference frame  
-				QuaternionSMAngles( -1, Quaternion( psrc[k].rot ), Quaternion( pdest[k].rot ), pdest[k].rot );
+				QuaternionSM( -1, psrc[k].qrot, pdest[k].qrot, pdest[k].qrot );
 				VectorSubtract( pdest[k].pos, psrc[k].pos, pdest[k].pos );
 
 				// rescale results (not sure what basis physics system is expecting)
 				{
 					// QuaternionScale( pdest[k].rot, scale, pdest[k].rot );
 					Quaternion q;
-					AngleQuaternion( pdest[k].rot, q );
-					QuaternionScale( q, scale, q );
-					QuaternionAngles( q, pdest[k].rot );
+					
+					QuaternionCopy( pdest[k].qrot, q );
+					QuaternionScale( q, scale, q );					
+					QuaternionCopy( q, pdest[k].qrot );
+
 					VectorScale( pdest[k].pos, scale, pdest[k].pos );
 				}
 
@@ -1594,7 +1693,7 @@ void clearAnimations( s_animation_t *panim, bool bRetainDuration )
 		for (k = 0; k < g_numbones; k++)
 		{
 			panim->sanim[0][k].pos = Vector( 0, 0, 0 );
-			panim->sanim[0][k].rot = RadianEuler( 0, 0, 0 );
+			panim->sanim[0][k].qrot = Quaternion(0, 0, 0, 1);
 			panim->weight[k] = 0.0;
 			panim->posweight[k] = 0.0;
 		}
@@ -1642,7 +1741,7 @@ void BuildRawTransforms( const s_source_t *psource, const char *pAnimationName,
 	int k;
 	Vector tmp;
 	Vector pos;
-	RadianEuler rot;
+	Quaternion qrot;
 	matrix3x4_t bonematrix;
 	
 	matrix3x4_t rootxform;
@@ -1674,7 +1773,7 @@ void BuildRawTransforms( const s_source_t *psource, const char *pAnimationName,
 	for (k = 0; k < psource->numbones; k++)
 	{
 		VectorScale( pSourceAnim->rawanim.Element(frame)[k].pos, scale, pos );
-		VectorCopy( pSourceAnim->rawanim.Element(frame)[k].rot, rot );
+		QuaternionCopy( pSourceAnim->rawanim.Element(frame)[k].qrot, qrot );
 
 		if ( psource->localBone[k].parent == -1 )
 		{
@@ -1684,14 +1783,13 @@ void BuildRawTransforms( const s_source_t *psource, const char *pAnimationName,
 			// rotate
 			VectorRotate( tmp, rootxform, pos );
 
-			matrix3x4_t m;
-			AngleMatrix( rot, m );
+			matrix3x4_t m = QuaternionMatrix(qrot);
 			ConcatTransforms( rootxform, m, bonematrix );
-			MatrixAngles( bonematrix, rot );
-			clip_rotations( rot );
+			MatrixQuaternion(bonematrix, qrot);			
 		}
 
-		AngleMatrix( rot, pos, bonematrix );
+
+		QuaternionMatrix( qrot, pos, bonematrix );
 
 		if ( psource->localBone[k].parent == -1 )
 		{
@@ -1729,12 +1827,12 @@ void TranslateAnimations( const s_source_t *pSource, const matrix3x4_t *pSrcBone
 			// unknown bone, copy over defaults
 			if ( g_bonetable[k].parent >= 0 )
 			{
-				AngleMatrix( g_bonetable[k].rot, g_bonetable[k].pos, bonematrix );
+				QuaternionMatrix( g_bonetable[k].qrot, g_bonetable[k].pos, bonematrix );
 				ConcatTransforms( pDestBoneToWorld[g_bonetable[k].parent], bonematrix, pDestBoneToWorld[k] );
 			}
 			else
 			{
-				AngleMatrix( g_bonetable[k].rot, g_bonetable[k].pos, pDestBoneToWorld[k] );
+				QuaternionMatrix( g_bonetable[k].qrot, g_bonetable[k].pos, pDestBoneToWorld[k] );
 			}
 		}
 		else
@@ -1791,9 +1889,7 @@ void ConvertAnimation( const s_source_t *psource, const char *pAnimationName, in
 			// C <= B-1 * A
 		}
 
-		MatrixAngles( bonematrix, dest[k].rot, dest[k].pos );
-		
-		clip_rotations( dest[k].rot );
+		MatrixQuaternion( bonematrix, dest[k].qrot, dest[k].pos );
 	}
 }
 
@@ -1918,7 +2014,7 @@ void addDeltas( s_animation_t *panim, int frame, float s, Vector delta_pos[], Qu
 	{
 		if (panim->weight[k] > 0)
 		{
-			QuaternionSMAngles( s, delta_q[k], Quaternion( panim->sanim[frame][k].rot ), panim->sanim[frame][k].rot );
+			QuaternionSM(s, delta_q[k], panim->sanim[frame][k].qrot, panim->sanim[frame][k].qrot);
 			VectorMA( panim->sanim[frame][k].pos, s, delta_pos[k], panim->sanim[frame][k].pos );
 		}
 	}
@@ -1948,9 +2044,12 @@ void fixupLoopingDiscontinuities( s_animation_t *panim, int start, int end )
 	for (k = 0; k < g_numbones; k++)
 	{
 		VectorSubtract( panim->sanim[m][k].pos, panim->sanim[0][k].pos, delta_pos[k] );
-		QuaternionMA( Quaternion( panim->sanim[m][k].rot ), -1, Quaternion( panim->sanim[0][k].rot ), delta_q[k] );
-		QAngle ang;
-		QuaternionAngles( delta_q[k], ang );
+		QuaternionMA( panim->sanim[m][k].qrot, -1, panim->sanim[0][k].qrot, delta_q[k] );
+		
+		
+		// по какой-то причине принт ниже не используется. 
+		/*QAngle ang;
+		QuaternionAngles( delta_q[k], ang );*/
 		// printf("%2d  %.1f %.1f %.1f\n", k, ang.x, ang.y, ang.z );
 	}
 
@@ -2027,7 +2126,7 @@ void matchBlend( s_animation_t *pDestAnim, s_animation_t *pSrcAnimation, int iSr
 	for (k = 0; k < g_numbones; k++)
 	{
 		VectorSubtract( pSrcAnimation->sanim[iSrcFrame][k].pos, pDestAnim->sanim[iDestFrame][k].pos, delta_pos[k] );
-		QuaternionMA( Quaternion( pSrcAnimation->sanim[iSrcFrame][k].rot ), -1, Quaternion( pDestAnim->sanim[iDestFrame][k].rot ), delta_q[k] );
+		QuaternionMA( pSrcAnimation->sanim[iSrcFrame][k].qrot, -1, pDestAnim->sanim[iDestFrame][k].qrot, delta_q[k] );
 		/*
 		QAngle ang;
 		QuaternionAngles( delta_q[k], ang );
@@ -2090,9 +2189,16 @@ void matchBlend( s_animation_t *pDestAnim, s_animation_t *pSrcAnimation, int iSr
 
 void forceAnimationLoop( s_animation_t *panim )
 {
-	int k, m, n;
+
+	MdlWarning("Trying to use forceAnimationLoop (Disabled) \n");
+
+	
 
 	// force looping animations to be looping
+
+	// этот код нам больше не нужен, т.к мы юзаем входные кватернионы
+	/*
+	* int k, m, n;
 	if (panim->flags & STUDIO_LOOPING)
 	{
 		n = 0;
@@ -2117,6 +2223,7 @@ void forceAnimationLoop( s_animation_t *panim )
 				panim->sanim[m][k].rot[2] = panim->sanim[n][k].rot[2];
 		}
 	}
+	*/
 
 	// printf("\n");
 }
@@ -2307,9 +2414,9 @@ void makeAngle( s_animation_t *panim, float angle )
 		{
 			if (g_bonetable[k].parent == -1)
 			{
-				AngleMatrix( panim->sanim[j][k].rot, panim->sanim[j][k].pos, src );
+				QuaternionMatrix( panim->sanim[j][k].qrot, panim->sanim[j][k].pos, src );
 				ConcatTransforms( rootxform, src, dest );
-				MatrixAngles( dest, panim->sanim[j][k].rot, panim->sanim[j][k].pos );
+				MatrixQuaternion( dest, panim->sanim[j][k].qrot, panim->sanim[j][k].pos );
 			}
 		}
 	}
@@ -2332,7 +2439,7 @@ void solveBone(
 
 	if (iParent == -1)
 	{
-		MatrixAngles( pBoneToWorld[iBone], panim->sanim[iFrame][iBone].rot, panim->sanim[iFrame][iBone].pos );
+		MatrixQuaternion( pBoneToWorld[iBone], panim->sanim[iFrame][iBone].qrot, panim->sanim[iFrame][iBone].pos );
 		return;
 	}
 
@@ -2344,7 +2451,7 @@ void solveBone(
 
 	iFrame = iFrame % panim->numframes;
 
-	MatrixAngles( local, panim->sanim[iFrame][iBone].rot, panim->sanim[iFrame][iBone].pos );
+	MatrixQuaternion( local, panim->sanim[iFrame][iBone].qrot, panim->sanim[iFrame][iBone].pos );
 }
 
 
@@ -3251,6 +3358,10 @@ int findGlobalBoneXSI( const char *name )
 
 void findAnimQuaternionAlignment( int k, int i, Quaternion &qBase, Quaternion &qMin, Quaternion &qMax )
 {
+
+	MdlWarning("Trying to use deprecated findAnimQuaternionAlignment \n");
+
+	
 	int j;
 
 	AngleQuaternion( g_panimation[i]->sanim[0][k].rot, qBase );
@@ -3270,10 +3381,9 @@ void findAnimQuaternionAlignment( int k, int i, Quaternion &qBase, Quaternion &q
 		float d1 = QuaternionDotProduct( q, qMin );
 		float d2 = QuaternionDotProduct( q, qMax );
 
-		/*
-		if (i != 0) 
-			printf("%f %f %f : %f\n", d0, d1, d2, QuaternionDotProduct( qMin, qMax ) );
-		*/
+		
+		//if (i != 0) printf("%f %f %f : %f\n", d0, d1, d2, QuaternionDotProduct( qMin, qMax ) );
+		
 		if (d1 >= d0)
 		{
 			if (d0 < dMin)
@@ -3296,10 +3406,7 @@ void findAnimQuaternionAlignment( int k, int i, Quaternion &qBase, Quaternion &q
 			}
 		}
 
-		/*
-		if (i != 0) 
-			printf("%f ", QuaternionDotProduct( qMin, qMax ) );
-		*/
+		//if (i != 0) printf("%f ", QuaternionDotProduct( qMin, qMax ) );
 
 		QuaternionSlerpNoAlign( qMin, qMax, 0.5, qBase );
 		Assert( qBase.IsValid() );
@@ -3338,6 +3445,10 @@ void findAnimQuaternionAlignment( int k, int i, Quaternion &qBase, Quaternion &q
 
 void limitBoneRotations( void )
 {
+
+
+	MdlWarning("Trying to use deprecated limitBoneRotations (will broke animations) \n");
+
 	int i, j, k;
 
 	for (i = 0; i < g_numlimitrotation; i++)
@@ -3615,35 +3726,50 @@ int VectorCompareEpsilon(const Vector& v1, const Vector& v2, float epsilon)
 	return 1;
 }
 
-int RadianEulerCompareEpsilon(const RadianEuler& v1, const RadianEuler& v2, float epsilon)
+//int RadianEulerCompareEpsilon(const RadianEuler& v1, const RadianEuler& v2, float epsilon)
+//{
+//	int		i;
+//	
+//	for (i=0 ; i<3 ; i++)
+//	{
+//		// clamp to 2pi
+//		float a1 = fmod(v1[i],(float) (2*M_PI));
+//		float a2 = fmod(v2[i],(float) (2*M_PI));
+//		float delta =  fabs(a1-a2);
+//		
+//		// use the smaller angle (359 == 1 degree off)
+//		if ( delta > M_PI )
+//		{
+//			delta = 2*M_PI - delta;
+//		}
+//
+//		if (delta > epsilon)
+//			return 0;
+//	}
+//			
+//	return 1;
+//}
+
+int QuaternionCompare(const Quaternion& q1, const Quaternion& q2)
 {
 	int		i;
-	
-	for (i=0 ; i<3 ; i++)
-	{
-		// clamp to 2pi
-		float a1 = fmod(v1[i],(float) (2*M_PI));
-		float a2 = fmod(v2[i],(float) (2*M_PI));
-		float delta =  fabs(a1-a2);
-		
-		// use the smaller angle (359 == 1 degree off)
-		if ( delta > M_PI )
-		{
-			delta = 2*M_PI - delta;
-		}
 
-		if (delta > epsilon)
+	for (i = 0; i < 4; i++)
+	{
+		if (q1[i] != q2[i])
+		{
 			return 0;
+		}
 	}
-			
+
 	return 1;
 }
 
-bool AnimationDifferent( const Vector& startPos, const RadianEuler& startRot, const Vector& pos, const RadianEuler& rot )
+bool AnimationDifferent( const Vector& startPos, const Quaternion& startqRot, const Vector& pos, const Quaternion& qrot )
 {
 	if ( !VectorCompareEpsilon( startPos, pos, 0.01 ) )
 		return true;
-	if ( !RadianEulerCompareEpsilon( startRot, rot, 0.01 ) )
+	if ( !QuaternionCompare( startqRot, qrot ) )
 		return true;
 
 	return false;
@@ -3653,7 +3779,8 @@ bool BoneHasAnimation( const char *pName )
 {
 	bool first = true;
 	Vector pos;
-	RadianEuler rot;
+	//RadianEuler rot;
+	Quaternion qrot;
 
 	if ( !g_numani )
 		return false;
@@ -3687,12 +3814,12 @@ bool BoneHasAnimation( const char *pName )
 			if ( first )
 			{
 				VectorCopy( pSourceAnim->rawanim[j+n][boneIndex].pos, pos );
-				VectorCopy( pSourceAnim->rawanim[j+n][boneIndex].rot, rot );
+				QuaternionCopy( pSourceAnim->rawanim[j+n][boneIndex].qrot, qrot );
 				first = false;
 			}
 			else
 			{
-				if ( AnimationDifferent( pos, rot, pSourceAnim->rawanim[j+n][boneIndex].pos, pSourceAnim->rawanim[j+n][boneIndex].rot ) )
+				if ( AnimationDifferent( pos, qrot, pSourceAnim->rawanim[j+n][boneIndex].pos, pSourceAnim->rawanim[j+n][boneIndex].qrot ) )
 					return true;
 			}
 		}
@@ -4024,7 +4151,8 @@ void MakeStaticProp()
 		if ( pSourceAnim )
 		{
 			pSourceAnim->rawanim[0][0].pos = Vector( 0, 0, 0 );
-			pSourceAnim->rawanim[0][0].rot = RadianEuler( 0, 0, 0 );
+			//pSourceAnim->rawanim[0][0].rot = RadianEuler( 0, 0, 0 );
+			pSourceAnim->rawanim[0][0].qrot = Quaternion(0,0,0,1);
 
 			// make it all a single frame animation
 			pSourceAnim->numframes = 1;
@@ -4599,7 +4727,7 @@ int BuildGlobalBonetable( )
 
 				if ( g_bonetable[k].parent == -1 || !g_bonetable[g_bonetable[k].parent].bPreAligned )
 				{
-					AngleMatrix( pSourceAnim->rawanim[0][j].rot, pSourceAnim->rawanim[0][j].pos, g_bonetable[k].rawLocal );
+					QuaternionMatrix( pSourceAnim->rawanim[0][j].qrot, pSourceAnim->rawanim[0][j].pos, g_bonetable[k].rawLocal );
 					g_bonetable[k].rawLocalOriginal = g_bonetable[k].rawLocal;
 				}
 				else
@@ -4688,7 +4816,7 @@ void RebuildLocalPose( )
 		{
 			ConcatTransforms (poseToBone[g_bonetable[k].parent], boneToPose[k], g_bonetable[k].rawLocal );
 		}
-		MatrixAngles( g_bonetable[k].rawLocal, g_bonetable[k].rot, g_bonetable[k].pos );
+		MatrixQuaternion( g_bonetable[k].rawLocal, g_bonetable[k].qrot, g_bonetable[k].pos );
 		MatrixCopy( boneToPose[k], g_bonetable[k].boneToPose );
 		MatrixInvert( boneToPose[k], poseToBone[k] );
 
@@ -5666,7 +5794,7 @@ void RealignBones( )
 		matrix3x4_t local;
 		matrix3x4_t tmp;
 
-		AngleMatrix( g_forcedrealign[i].rot, local );
+		QuaternionMatrix( g_forcedrealign[i].qrot, local );
 		ConcatTransforms( boneToPose[k], local, tmp );
 		MatrixCopy( tmp, boneToPose[k] );
 	}
@@ -5705,7 +5833,7 @@ void RealignBones( )
 				ConcatTransforms( poseToBone, g_bonetable[k].boneToPose, bonematrix );
 			}
 
-			MatrixAngles( bonematrix, g_bonetable[k].rot, g_bonetable[k].pos );
+			MatrixQuaternion( bonematrix, g_bonetable[k].qrot, g_bonetable[k].pos );
 		}
 	}
 
@@ -5717,7 +5845,7 @@ void RealignBones( )
 	for (k = 0; k < g_numbones; k++)
 	{
 		matrix3x4_t bonematrix;
-		AngleMatrix( g_bonetable[k].rot, g_bonetable[k].pos, bonematrix );
+		QuaternionMatrix( g_bonetable[k].qrot, g_bonetable[k].pos, bonematrix );
 		// MatrixCopy( g_bonetable[k].rawLocal, bonematrix );
 		if (g_bonetable[k].parent == -1)
 		{
@@ -5830,7 +5958,7 @@ void CenterBonesOnVerts( void )
 				ConcatTransforms( poseToBone, g_bonetable[k].boneToPose, bonematrix );
 			}
 
-			MatrixAngles( bonematrix, g_bonetable[k].rot, g_bonetable[k].pos );
+			MatrixQuaternion( bonematrix, g_bonetable[k].qrot, g_bonetable[k].pos );
 		}
 	}
 }
@@ -5998,7 +6126,7 @@ void CalcBoneTransforms( s_animation_t *panimation, s_animation_t *pbaseanimatio
 
 		if (!(panimation->flags & STUDIO_DELTA))
 		{
-			AngleMatrix( panimation->sanim[frame][k].rot, panimation->sanim[frame][k].pos, bonematrix );
+			QuaternionMatrix( panimation->sanim[frame][k].qrot, panimation->sanim[frame][k].pos, bonematrix );
 		}
 		else if (pbaseanimation)
 		{
@@ -6006,8 +6134,8 @@ void CalcBoneTransforms( s_animation_t *panimation, s_animation_t *pbaseanimatio
 			Vector p3;
 
 			//AngleQuaternion( g_bonetable[k].rot, q1 );
-			AngleQuaternion( pbaseanimation->sanim[0][k].rot, q1 );
-			AngleQuaternion( panimation->sanim[frame][k].rot, q2 );
+			QuaternionCopy( pbaseanimation->sanim[0][k].qrot, q1 );
+			QuaternionCopy( panimation->sanim[frame][k].qrot, q2 );
 
 			float s = panimation->weight[k];
 
@@ -6015,15 +6143,15 @@ void CalcBoneTransforms( s_animation_t *panimation, s_animation_t *pbaseanimatio
 			//p3 = g_bonetable[k].pos + s * panimation->sanim[frame][k].pos;
 			p3 = pbaseanimation->sanim[0][k].pos + s * panimation->sanim[frame][k].pos;
 
-			AngleMatrix( RadianEuler( q3 ), p3, bonematrix );
+			QuaternionMatrix(q3, p3, bonematrix );
 		}
 		else
 		{
 			Quaternion q1, q2, q3;
 			Vector p3;
 
-			AngleQuaternion( g_bonetable[k].rot, q1 );
-			AngleQuaternion( panimation->sanim[frame][k].rot, q2 );
+			QuaternionCopy( g_bonetable[k].qrot, q1 );
+			QuaternionCopy( panimation->sanim[frame][k].qrot, q2 );
 
 			float s = panimation->weight[k];
 
@@ -6031,7 +6159,7 @@ void CalcBoneTransforms( s_animation_t *panimation, s_animation_t *pbaseanimatio
 			//p3 = g_bonetable[k].pos + s * panimation->sanim[frame][k].pos;
 			p3 = pbaseanimation->sanim[0][k].pos + s * g_bonetable[k].pos;
 
-			AngleMatrix( RadianEuler( q3 ), p3, bonematrix );
+			QuaternionMatrix( q3, p3, bonematrix );
 		}
 
 		if (g_bonetable[k].parent == -1)
@@ -6067,8 +6195,8 @@ void CalcBoneTransformsCycle( s_animation_t *panimation, s_animation_t *pbaseani
 
 		// if (!(panimation->flags & STUDIO_DELTA))
 		{
-			AngleQuaternion( panimation->sanim[iFrame1][k].rot, q1 );
-			AngleQuaternion( panimation->sanim[iFrame2][k].rot, q2 );
+			QuaternionCopy( panimation->sanim[iFrame1][k].qrot, q1 );
+			QuaternionCopy( panimation->sanim[iFrame2][k].qrot, q2 );
 			QuaternionSlerp( q1, q2, s, q3 );
 
 			VectorLerp( panimation->sanim[iFrame1][k].pos, panimation->sanim[iFrame2][k].pos, s, p3 );
@@ -6205,7 +6333,8 @@ void CalcPoseSingle( Vector pos[], Quaternion q[], int sequence, float frame )
 	for (int k = 0; k < g_numbones; k++)
 	{
 		// FIXME: this isn't doing a fractional frame
-		AngleQuaternion( panim->sanim[iframe][k].rot, q[k] );
+			// FIXME 2025: After a.. 8+ years ? it still needs to be fixed.
+		QuaternionCopy( panim->sanim[iframe][k].qrot, q[k] );
 		pos[k] = panim->sanim[iframe][k].pos;
 	}
 }
@@ -6327,7 +6456,7 @@ void CalcSeqTransforms( int sequence, int frame, matrix3x4_t* pBoneToWorld )
 	{
 		//AngleQuaternion( g_bonetable[k].rot, q[k] );
 		//pos[k] = g_bonetable[k].pos;
-		AngleQuaternion( g_bonetable[k].rot, q[k] );
+		QuaternionCopy( g_bonetable[k].qrot, q[k] );
 		pos[k] = g_bonetable[k].pos;
 	}
 
@@ -8074,6 +8203,10 @@ static void ProcessIKRules( )
 
 static void CompressAnimations( )
 {
+	// 2025
+	// IDK HOW IT WORKS, BUT IT STILL USES EULERS
+
+
 	int i, j, k, n, m;
 
 
@@ -8081,10 +8214,18 @@ static void CompressAnimations( )
 	//g_minSectionFrameLimit = 100000;
 	//g_animblocksize = 0;
 
-
+	// For g_bonetable[j].rot
+	RadianEuler j_rot;
+	// For g_panimation[i]->sanim[n][j].rot[k - 3];
+	RadianEuler n_j_rot;
+	
 	// find scales for all bones
 	for (j = 0; j < g_numbones; j++)
 	{
+
+		// Temporary Implement for g_bonetable[j].rot (2025)
+		QuaternionAngles(g_bonetable[j].qrot, j_rot);
+
 		// printf("%s : ", g_bonetable[j].name );
 		for (k = 0; k < 6; k++)
 		{
@@ -8101,13 +8242,21 @@ static void CompressAnimations( )
 			{
 				minv = -M_PI / 8.0;
 				maxv = M_PI / 8.0;
-				total_maxv = total_minv = g_bonetable[j].rot[k-3];
+				
+				// replace this to temp ang from Quaternion (2025)
+				//total_maxv = total_minv = g_bonetable[j].rot[k-3];
+					
+				
+				total_maxv = total_minv = j_rot[k - 3];
 			}
 
 			for (i = 0; i < g_numani; i++)
 			{
 				for (n = 0; n < g_panimation[i]->numframes; n++)
 				{
+					// for (v = g_panimation[i]->sanim[n][j].rot[k-3])
+					QuaternionAngles(g_panimation[i]->sanim[n][j].qrot, n_j_rot);
+
 					float v = 0.0f;
 					switch(k)
 					{
@@ -8133,11 +8282,12 @@ static void CompressAnimations( )
 					case 5:
 						if (g_panimation[i]->flags & STUDIO_DELTA)
 						{
-							v = g_panimation[i]->sanim[n][j].rot[k-3]; 
+							//v = g_panimation[i]->sanim[n][j].rot[k-3]; 
+							v = n_j_rot[k-3];
 						}
 						else
 						{
-							v = ( g_panimation[i]->sanim[n][j].rot[k-3] - g_bonetable[j].rot[k-3] ); 
+							v = (n_j_rot[k-3] - j_rot[k-3] );
 						}
 						while (v >= M_PI)
 							v -= M_PI * 2;
@@ -8213,6 +8363,8 @@ static void CompressAnimations( )
 			panim->numsections = 1;
 		}
 
+		RadianEuler psrcdata_rot;
+		RadianEuler g_bonetable_j;
 		for (int w = 0; w < panim->numsections; w++)
 		{
 			int iStartFrame = w * iSectionFrames;
@@ -8225,6 +8377,9 @@ static void CompressAnimations( )
 
 			for (j = 0; j < g_numbones; j++)
 			{
+				
+				QuaternionAngles(g_bonetable[j].qrot, g_bonetable_j);
+
 				for (k = 0; k < 6; k++)
 				{
 					panim->anim[w][j].num[k] = 0;
@@ -8260,6 +8415,11 @@ static void CompressAnimations( )
 					for (n = 0; n <= iEndFrame - iStartFrame; n++)
 					{
 						s_bone_t *psrcdata = &panim->sanim[n+iStartFrame][j];
+						
+						QuaternionAngles(psrcdata->qrot, psrcdata_rot);
+						
+
+
 						switch(k)
 						{
 						case 0: /* X Position */
@@ -8283,11 +8443,11 @@ static void CompressAnimations( )
 						case 5: /* Z Rotation */
 							if (panim->flags & STUDIO_DELTA)
 							{
-								v = psrcdata->rot[k-3]; 
+								v = psrcdata_rot[k-3];
 							}
 							else
 							{
-								v = ( psrcdata->rot[k-3] - g_bonetable[j].rot[k-3] ); 
+								v = (psrcdata_rot[k-3] - g_bonetable_j[k-3] );
 							}
 
 							while (v >= M_PI)
@@ -8652,8 +8812,11 @@ void DumpDefineBone( int nBoneId, bool *pBoneDumpedList )
 	Vector pos;
 	QAngle angles;
 
+	RadianEuler bone_rot;
+	QuaternionAngles(bone.qrot, bone_rot);
+
 	pos = bone.pos;
-	angles.Init( RAD2DEG( bone.rot.y ), RAD2DEG( bone.rot.z ), RAD2DEG( bone.rot.x ) );
+	angles.Init( RAD2DEG(bone_rot.y ), RAD2DEG(bone_rot.z ), RAD2DEG(bone_rot.x ) );
 	printf( "%f %f %f %f %f %f", pos.x, pos.y, pos.z, angles.x, angles.y, angles.z );
 
 	MatrixAngles( bone.srcRealign, angles, pos );
@@ -9247,7 +9410,7 @@ void SimplifyModel()
 
 	processAnimations();
 
-	limitBoneRotations();
+	//limitBoneRotations();
 
 	limitIKChainLength();
 

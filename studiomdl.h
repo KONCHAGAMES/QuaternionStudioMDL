@@ -419,6 +419,7 @@ struct s_linearmove_t
 	Vector			vector;		// movement vector
 	Vector			pos;	// final position
 	RadianEuler		rot;		// final rotation
+	Quaternion qrot;		// final rotation
 };
 
 
@@ -571,6 +572,7 @@ struct s_animcmd_t
 			float			pos[3];
 			bool			bDoRot;
 			float			rot[3];
+			float			qrot[4];
 			bool			bRotIsLocal;
 		} forceboneposrot;
 
@@ -1535,7 +1537,8 @@ EXTERN s_forcedhierarchy_t g_forcedhierarchy[MAXSTUDIOBONES];
 struct s_forcedrealign_t
 {
 	char			name[MAXSTUDIONAME];
-	RadianEuler		rot;
+	//RadianEuler		rot;
+	Quaternion qrot;
 };
 EXTERN int g_numforcedrealign;
 EXTERN s_forcedrealign_t g_forcedrealign[MAXSTUDIOBONES];

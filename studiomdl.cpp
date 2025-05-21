@@ -1136,7 +1136,7 @@ void Build_Reference( s_source_t *pSource, const char *pAnimName )
 		matrix3x4_t m;
 		if ( pReferenceAnim )
 		{
-			AngleMatrix( pReferenceAnim->rawanim[0][i].rot, m );
+			QuaternionMatrix( pReferenceAnim->rawanim[0][i].qrot, m );
 			m[0][3] = pReferenceAnim->rawanim[0][i].pos[0];
 			m[1][3] = pReferenceAnim->rawanim[0][i].pos[1];
 			m[2][3] = pReferenceAnim->rawanim[0][i].pos[2];
@@ -2477,9 +2477,10 @@ void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 
 			scale_vertex( pos );
 			VectorCopy( pos, pAnim->rawanim[t][index].pos );
+			QuaternionCopy(smdqrot, pAnim->rawanim[t][index].qrot);
 			//VectorCopy( rot, pAnim->rawanim[t][index].rot );
 
-			QuaternionCopy(smdqrot, pAnim->rawanim[t][index].qrot);
+			
 
 			//clip_rotations( rot ); // !!!
 			continue;
@@ -2527,7 +2528,7 @@ void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 				for ( int j = 0; j < pSource->numbones; j++ )
 				{
 					VectorCopy( pAnim->rawanim[t-1][j].pos, pAnim->rawanim[t][j].pos );
-					VectorCopy( pAnim->rawanim[t-1][j].rot, pAnim->rawanim[t][j].rot );
+					QuaternionCopy( pAnim->rawanim[t-1][j].qrot, pAnim->rawanim[t][j].qrot );
 				}
 			}
 			continue;
@@ -9441,15 +9442,22 @@ void Cmd_ForceRealign( )
 
 	// X axis
 	GetToken (false);
-	g_forcedrealign[g_numforcedrealign].rot.x = DEG2RAD( verify_atof( token ) );
+
+	RadianEuler rot;
+
+
+	rot.x = DEG2RAD( verify_atof( token ) );
 
 	// Y axis
 	GetToken (false);
-	g_forcedrealign[g_numforcedrealign].rot.y = DEG2RAD( verify_atof( token ) );
+	rot.y = DEG2RAD( verify_atof( token ) );
 
 	// Z axis
 	GetToken (false);
-	g_forcedrealign[g_numforcedrealign].rot.z = DEG2RAD( verify_atof( token ) );
+	rot.z = DEG2RAD( verify_atof( token ) );
+
+	AngleQuaternion(rot, g_forcedrealign[g_numforcedrealign].qrot);
+	
 
 	g_numforcedrealign++;
 }
