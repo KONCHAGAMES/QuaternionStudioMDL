@@ -8316,13 +8316,22 @@ static void CompressAnimations( )
 			{
 				scale = 1.0 / 32.0;
 			}
+
+			//printf("scale %f\n", scale);
+
+			// probably we dont need real scaling for saving proportions? (one value for all frames to prevent disagreements) (2025)
+			//scale = 1/32;
+			// 
+			//scale = 1/32;
+			scale = 0.01;
+
 			switch(k)
 			{
 			case 0: 
 			case 1: 
 			case 2: 
 				g_bonetable[j].posscale[k] = scale;
-				g_bonetable[j].posrange[k] = total_maxv - total_minv;
+				g_bonetable[j].posrange[k] = 1;// total_maxv - total_minv;
 				break;
 			case 3:
 			case 4:
@@ -8339,11 +8348,16 @@ static void CompressAnimations( )
 
 
 	// reduce animations
+	
+	
+	// вот эта хуйня отвечает за финальную запись анимаций в контексте simplify
 	for (i = 0; i < g_numani; i++)
 	{
 		s_animation_t *panim = g_panimation[i];
 		s_source_t *psource = panim->source;
 
+
+		s_sourceanim_t* RawAnim = &psource->m_Animations[0];
 		if (g_bCheckLengths)
 		{
 			printf("%s\n", panim->name ); 
