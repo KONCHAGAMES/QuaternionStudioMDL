@@ -2474,10 +2474,24 @@ void Grab_Animation( s_source_t *pSource, const char *pAnimName )
 			{
 				MdlError( "Missing frame start(%d) : %s", g_iLinecount, g_szLine );
 			}
+			
+			VectorCopy(pos, pAnim->rawanim[t][index].pos);
 
-			scale_vertex( pos );
-			VectorCopy( pos, pAnim->rawanim[t][index].pos );
+			//g_currentscale = 0.01f;
+			//scale_vertex(pos);
+			VectorCopy(pos, pAnim->rawanim[t][index].pos2);
+
+			
+			
+			
+			/*pos[0] = pos[0] / scale;
+			pos[1] = pos[1] / scale;
+			pos[2] = pos[2] / scale;*/
+			
+			//VectorScale(pos, Vector(2,2,2), pAnim->rawanim[t][index].pos2);
+
 			QuaternionCopy(smdqrot, pAnim->rawanim[t][index].qrot);
+			QuaternionCopy(smdqrot, pAnim->rawanim[t][index].qrot2);
 			//VectorCopy( rot, pAnim->rawanim[t][index].rot );
 
 			

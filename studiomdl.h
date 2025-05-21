@@ -408,6 +408,10 @@ struct s_bone_t
 	Vector			pos;
 	RadianEuler		rot;
 	Quaternion qrot;
+	
+	Vector pos2;
+	Quaternion qrot2;
+	
 };
 
 struct s_linearmove_t
@@ -677,7 +681,11 @@ struct s_animation_t
 	char			name[MAXSTUDIONAME];
 	char			filename[MAX_PATH];
 
+
+	int				anim_index;
+
 	/*
+
 	int				animsubindex;
 
 	// For sharing outside of current .mdl file

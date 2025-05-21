@@ -275,10 +275,24 @@ static void WriteBoneInfo( studiohdr_t *phdr )
 		pbone[i].pos			= g_bonetable[i].pos;
 		pbone[i].rot			= g_bonetable[i].rot;
 //		pbone[i].qrot = g_bonetable[i].qrot;
+		
 		pbone[i].posscale		= g_bonetable[i].posscale;
 		pbone[i].rotscale		= g_bonetable[i].rotscale;
+
+		pbone[i].posscale[0] = 10;
+		pbone[i].posscale[1] = 0;
+		pbone[i].posscale[2] = -10;
+
+		pbone[i].rotscale[0] = 10;
+		pbone[i].rotscale[1] = 0;
+		pbone[i].rotscale[2] = -10;
+
+		
+		//printf("%f %f f\n", pbone[i].posscale[0], pbone[i].posscale[1], pbone[i].posscale[2]);
+		
 		MatrixInvert( g_bonetable[i].boneToPose, pbone[i].poseToBone );
-		pbone[i].qAlignment		= g_bonetable[i].qAlignment;
+		//pbone[i].qAlignment		= g_bonetable[i].qAlignment;
+
 
 		QuaternionCopy(g_bonetable[i].qrot, pbone[i].quat);
 		//AngleQuaternion( RadianEuler( g_bonetable[i].rot[0], g_bonetable[i].rot[1], g_bonetable[i].rot[2] ), pbone[i].quat );
@@ -1321,21 +1335,44 @@ void WriteRLEAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destanimd
 	ALIGN4( pData );
 }
 
-void WriteFrameAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destanimdesc, byte *&pData, int w )
+void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanimdesc, byte*& pData, int w)
 {
+
+	// Raw Source Anim
+	s_sourceanim_t* RawAnim = &srcanim->source->m_Animations[0];
+
 	// allocate room for header
-	mstudio_frame_anim_t *destframeanim = (mstudio_frame_anim_t *)pData;
-	pData += sizeof( *destframeanim );
+	mstudio_frame_anim_t* destframeanim = (mstudio_frame_anim_t*)pData;
+	pData += sizeof(*destframeanim);
 
 	// write flags and constants
-	byte *flag = pData;
-	pData += g_numbones * sizeof( *flag );
+	byte* flag = pData;
+	pData += g_numbones * sizeof(*flag);
 
-	ALIGN4( pData );
+	ALIGN4(pData);
 
-	destframeanim->constantsoffset = pData - (byte *)destframeanim;
+	destframeanim->constantsoffset = pData - (byte*)destframeanim;
 	int framelength = 0;
-	int iFrame = MIN( w * srcanim->sectionframes, srcanim->numframes - 1 );
+	int iFrame = MIN(w * srcanim->sectionframes, srcanim->numframes - 1);
+
+	for (int j = 0; j < g_numbones; j++)
+	{
+		
+		srcanim->sanim[iFrame][j].pos.x = RawAnim->rawanim[iFrame][j].pos2.x;
+		srcanim->sanim[iFrame][j].pos.y = RawAnim->rawanim[iFrame][j].pos2.y;
+		srcanim->sanim[iFrame][j].pos.z = RawAnim->rawanim[iFrame][j].pos2.z;
+		/*if (g_bonetable[j].parent == -1)
+		{
+			srcanim->sanim[iFrame][j].pos.z = RawAnim->rawanim[iFrame][j].pos2.z;
+		}
+		else
+		{
+			srcanim->sanim[iFrame][j].pos.z = RawAnim->rawanim[iFrame][j].pos2.z - g_bonetable[j].pos.z;
+		}*/
+		
+
+		//VectorCopy(RawAnim->rawanim[iFrame][j].pos2- srcanim->sanim[iFrame][j].pos, srcanim->sanim[iFrame][j].pos);
+	}
 
 	for (int j = 0; j < g_numbones; j++)
 	{
@@ -1349,7 +1386,8 @@ void WriteFrameAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destani
 		{
 			flag[j] |= STUDIO_FRAME_CONST_ROT2;
 			Quaternion q;
-			QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
+			QuaternionCopy(RawAnim->rawanim[iFrame][j].qrot2, q);
+			//QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
 			//AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
 			*((Quaternion48S *)pData) = q;
 			pData += sizeof( Quaternion48S );
@@ -1370,13 +1408,20 @@ void WriteFrameAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destani
 			if (g_bAnimblockHighRes)
 			{
 				flag[j] |= STUDIO_FRAME_CONST_POS2;
+				
+				//*((Vector*)pData) = g_bonetable[j].pos - RawAnim->rawanim[iFrame][j].pos2;
 				*((Vector *)pData) = srcanim->sanim[iFrame][j].pos;
+				//*((Vector*)pData) = RawAnim->rawanim[iFrame][j].pos2;
 				pData += sizeof( Vector );
 			}
 			else
 			{
 				flag[j] |= STUDIO_FRAME_CONST_POS;
+				//*((Vector*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
 				*((Vector48 *)pData) = srcanim->sanim[iFrame][j].pos;
+
+				//*((Vector48*)pData) = RawAnim->rawanim[iFrame][j].pos2;
+
 				pData += sizeof( Vector48 );
 			}
 		}
@@ -1422,29 +1467,42 @@ void WriteFrameAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destani
 	*/
 
 
+	
+
 	for (iFrame = iStartFrame; iFrame <= iEndFrame; iFrame++)
 	{
+
 		// save animation value info
 		for (int j = 0; j < g_numbones; j++)
 		{
 			if (flag[j] & STUDIO_FRAME_ANIM_ROT2)
 			{
 				
-				Quaternion q;
-				QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
-				//AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
-				*((Quaternion48S *)pData) = q;
+				Quaternion write_q;
+				//QuaternionCopy(srcanim->sanim[iFrame][j].qrot, write_q);
+				QuaternionCopy(RawAnim->rawanim[iFrame][j].qrot2, write_q);
+				*((Quaternion48S *)pData) = write_q;
 				pData += sizeof( Quaternion48S );
 			}
 
+			//s_bone_t* psrcdata = &srcanim->sanim[iFrame][j];
+			//Vector PosVector = psrcdata->pos2;
+
 			if (flag[j] & STUDIO_FRAME_ANIM_POS)
 			{
+				//*((Vector48*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
 				*((Vector48 *)pData) = srcanim->sanim[iFrame][j].pos;
+
+				//*((Vector48*)pData) = RawAnim->rawanim[iFrame][j].pos2;
 				pData += sizeof( Vector48 );
 			}
 			else if (flag[j] & STUDIO_FRAME_ANIM_POS2)
 			{
+				//*((Vector48*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
 				*((Vector *)pData) = srcanim->sanim[iFrame][j].pos;
+
+				//*((Vector*)pData) = RawAnim->rawanim[iFrame][j].pos2;
+
 				pData += sizeof( Vector );
 			}
 		}
@@ -1502,6 +1560,7 @@ void WriteAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destanimdesc
 		// write into anim blocks if needed
 		if (destanimdesc->sectionindex)
 		{
+			printf(" + Writing sectionindex?\n");
 			if (bUseExtData)
 			{
 				if (g_numanimblocks && pData - g_animblock[g_numanimblocks-1].start > g_animblocksize)
@@ -1747,6 +1806,7 @@ static byte *WriteAnimations( byte *pData, byte *pStart, studiohdr_t *phdr )
 	for (i = 0; i < g_numani; i++) 
 	{
 		s_animation_t *srcanim = g_panimation[ i ];
+		srcanim->anim_index = i;
 		mstudioanimdesc_t *destanim = &panimdesc[i];
 		Assert( srcanim );
 
