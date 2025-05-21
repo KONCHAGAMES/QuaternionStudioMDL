@@ -1574,6 +1574,8 @@ int Load_OBJ( s_source_t *psource );
 int Load_DMX( s_source_t *psource );
 int Load_FBX( s_source_t *psource );
 
+void QuaternionCopy(Quaternion &src, Quaternion &des);
+
 //bool LoadPreprocessedFile( const char *pFileName, float flScale );
 
 int AppendVTAtoOBJ( s_source_t *psource, char *filename, int frame );
