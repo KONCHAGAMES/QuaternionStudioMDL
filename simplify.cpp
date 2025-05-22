@@ -8201,7 +8201,7 @@ static void ProcessIKRules( )
 // CompressAnimations
 //-----------------------------------------------------------------------------
 
-static void CompressAnimations()
+static void zCompressAnimations()
 {
 	// 2025
 	// IDK HOW IT WORKS, BUT IT STILL USES EULERS
@@ -8249,7 +8249,7 @@ static void CompressAnimations()
 
 		// setup animation interior sections
 		int iSectionFrames = panim->numframes;
-		if (panim->numframes >= g_minSectionFrameLimit)
+		if (panim->numframes >= g_minSectionFrameLimit && false)
 		{
 			iSectionFrames = g_sectionFrames;
 			panim->sectionframes = g_sectionFrames;
@@ -8263,6 +8263,8 @@ static void CompressAnimations()
 
 		RadianEuler psrcdata_rot;
 		RadianEuler g_bonetable_j;
+		printf("panim->numsections [%s] %d [frames %d] \n", panim->name,panim->numsections, iSectionFrames);
+
 		for (int w = 0; w < panim->numsections; w++)
 		{
 			int iStartFrame = w * iSectionFrames;
@@ -8280,8 +8282,8 @@ static void CompressAnimations()
 
 				for (k = 0; k < 6; k++)
 				{
-					panim->anim[w][j].num[k] = 0;
-					panim->anim[w][j].data[k] = NULL;
+					//panim->anim[w][j].num[k] = 0;
+					//panim->anim[w][j].data[k] = NULL;
 				}
 
 				// skip bones that are always procedural
@@ -8300,57 +8302,14 @@ static void CompressAnimations()
 				{
 					mstudioanimvalue_t* pcount, * pvalue;
 					float v;
-					short value[MAXSTUDIOANIMFRAMES];
+					//short value[MAXSTUDIOANIMFRAMES];
 					mstudioanimvalue_t data[MAXSTUDIOANIMFRAMES];
 
 					// find deltas from default pose
 					for (n = 0; n <= iEndFrame - iStartFrame; n++)
 					{
-						s_bone_t* psrcdata = &panim->sanim[n + iStartFrame][j];
-
-						QuaternionAngles(psrcdata->qrot, psrcdata_rot);
-
-
-
-						switch (k)
-						{
-						case 0: /* X Position */
-						case 1: /* Y Position */
-						case 2: /* Z Position */
-							if (panim->flags & STUDIO_DELTA)
-							{
-								value[n] = psrcdata->pos[k] / g_bonetable[j].posscale[k];
-								// pre-scale pos delta since format only has room for "overall" weight
-								float r = panim->posweight[j] / panim->weight[j];
-								value[n] *= r;
-							}
-							else
-							{
-								value[n] = (psrcdata->pos[k] - g_bonetable[j].pos[k]) / g_bonetable[j].posscale[k];
-							}
-
-							break;
-						case 3: /* X Rotation */
-						case 4: /* Y Rotation */
-						case 5: /* Z Rotation */
-							if (panim->flags & STUDIO_DELTA)
-							{
-								v = psrcdata_rot[k - 3];
-							}
-							else
-							{
-								v = (psrcdata_rot[k - 3] - g_bonetable_j[k - 3]);
-							}
-
-							while (v >= M_PI)
-								v -= M_PI * 2;
-							while (v < -M_PI)
-								v += M_PI * 2;
-
-							value[n] = v / g_bonetable[j].rotscale[k - 3];
-							break;
-						}						
 					}
+
 					if (n == 0)
 						MdlError("no animation frames: \"%s\"\n", psource->filename);
 
@@ -8363,25 +8322,26 @@ static void CompressAnimations()
 
 					pcount->num.valid = 1;
 					pcount->num.total = 1;
-					pvalue->value = value[0];
+//					pvalue->value = value[0];
 					pvalue++;
 
 					// build a RLE of deltas from the default pose
 					for (m = 1; m < n; m++)
 					{
-						if (pcount->num.total == 255)
+						if (false)
+						//if (pcount->num.total == 255)
 						{
 							// chain too long, force a new entry
 							pcount = pvalue;
 							pvalue = pcount + 1;
 							pcount->num.valid++;
-							pvalue->value = value[m];
+							//pvalue->value = value[m];
 							pvalue++;
 						}
 						// insert value if they're not equal, 
 						// or if we're not on a run and the run is less than 3 units
-						else if ((value[m] != value[m - 1])
-							|| ((pcount->num.total == pcount->num.valid) && ((m < n - 1) && value[m] != value[m + 1])))
+						else if (false)
+						//else if ((value[m] != value[m - 1]) || ((pcount->num.total == pcount->num.valid) && ((m < n - 1) && value[m] != value[m + 1])))
 						{
 							if (pcount->num.total != pcount->num.valid)
 							{
@@ -8390,15 +8350,23 @@ static void CompressAnimations()
 								pvalue = pcount + 1;
 							}
 							pcount->num.valid++;
-							pvalue->value = value[m];
+							//pvalue->value = value[m];
 							pvalue++;
 						}
 						pcount->num.total++;
 					}
 					//if (j == 0) printf("%d:%d\n", pcount->num.valid, pcount->num.total ); 
 
+					
 					panim->anim[w][j].num[k] = pvalue - data;
-					if (panim->anim[w][j].num[k] == 2 && value[0] == 0)
+
+					//pcount->num.valid = 100;
+					//pcount->num.total = 100;
+					
+					printf("Num %d \n", panim->anim[w][j].num[k]);
+
+					if (false)
+					//if (panim->anim[w][j].num[k] == 2 && value[0] == 0)
 					{
 						panim->anim[w][j].num[k] = 0;
 					}
@@ -8422,7 +8390,7 @@ static void CompressAnimations()
 
 
 
-static void CompressAnimations_OLD( )
+static void CompressAnimations( )
 {
 	// 2025
 	// IDK HOW IT WORKS, BUT IT STILL USES EULERS

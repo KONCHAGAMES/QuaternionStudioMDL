@@ -1335,7 +1335,7 @@ void WriteRLEAnimationData( s_animation_t *srcanim, mstudioanimdesc_t *destanimd
 	ALIGN4( pData );
 }
 
-void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanimdesc, byte*& pData, int w)
+void oWriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanimdesc, byte*& pData, int w)
 {
 
 	// Raw Source Anim
@@ -1380,10 +1380,12 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 
 		if (psrcdata->num[3] == 0 && psrcdata->num[4] == 0 && psrcdata->num[5] == 0)
 		{
+			printf("state1\n");
 			// no change
 		}
 		else if (psrcdata->num[3] <= 2 && psrcdata->num[4] <= 2 && psrcdata->num[5] <= 2)
 		{
+			printf("state2\n");
 			flag[j] |= STUDIO_FRAME_CONST_ROT2;
 			Quaternion q;
 			QuaternionCopy(RawAnim->rawanim[iFrame][j].qrot2, q);
@@ -1394,12 +1396,14 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 		}
 		else
 		{
+			printf("state3\n");
 			flag[j] |= STUDIO_FRAME_ANIM_ROT2;
 			framelength += sizeof( Quaternion48S );
 		}
 
 		if (psrcdata->num[0] == 0 && psrcdata->num[1] == 0 && psrcdata->num[2] == 0)
 		{
+			printf("state4\n");
 			// no change
 		}
 		else if (psrcdata->num[0] <= 2 && psrcdata->num[1] <= 2 && psrcdata->num[2] <= 2)
@@ -1407,6 +1411,7 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 			// single frame
 			if (g_bAnimblockHighRes)
 			{
+				printf("state5\n");
 				flag[j] |= STUDIO_FRAME_CONST_POS2;
 				
 				//*((Vector*)pData) = g_bonetable[j].pos - RawAnim->rawanim[iFrame][j].pos2;
@@ -1416,6 +1421,7 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 			}
 			else
 			{
+				printf("state6\n");
 				flag[j] |= STUDIO_FRAME_CONST_POS;
 				//*((Vector*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
 				*((Vector48 *)pData) = srcanim->sanim[iFrame][j].pos;
@@ -1430,11 +1436,14 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 			// multiple frames
 			if (g_bAnimblockHighRes)
 			{
+				printf("state7\n");
 				flag[j] |= STUDIO_FRAME_ANIM_POS2;
 				framelength += sizeof( Vector );
 			}
 			else
 			{
+
+				printf("state8\n");
 				flag[j] |= STUDIO_FRAME_ANIM_POS;
 				framelength += sizeof( Vector48 );
 			}
@@ -1443,6 +1452,7 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 
 	ALIGN4( pData );
 
+	printf("framelength %d\n", framelength);
 	// write raw data
 	destframeanim->frameoffset = pData - (byte *)destframeanim;
 	destframeanim->framelength = framelength;
@@ -1509,6 +1519,206 @@ void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanim
 	}
 
 	ALIGN4( pData );
+}
+
+
+
+void WriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destanimdesc, byte*& pData, int w)
+{
+
+	// Raw Source Anim
+	s_sourceanim_t* RawAnim = &srcanim->source->m_Animations[0];
+
+	// allocate room for header
+	mstudio_frame_anim_t* destframeanim = (mstudio_frame_anim_t*)pData;
+	pData += sizeof(*destframeanim);
+
+	// write flags and constants
+	byte* flag = pData;
+	pData += g_numbones * sizeof(*flag);
+
+	ALIGN4(pData);
+
+	destframeanim->constantsoffset = pData - (byte*)destframeanim;
+	int framelength = 0;
+	int iFrame = MIN(w * srcanim->sectionframes, srcanim->numframes - 1);
+
+#if 0
+	for (int j = 0; j < g_numbones; j++)
+	{
+
+		srcanim->sanim[iFrame][j].pos.x = RawAnim->rawanim[iFrame][j].pos2.x;
+		srcanim->sanim[iFrame][j].pos.y = RawAnim->rawanim[iFrame][j].pos2.y;
+		srcanim->sanim[iFrame][j].pos.z = RawAnim->rawanim[iFrame][j].pos2.z;
+		/*if (g_bonetable[j].parent == -1)
+		{
+			srcanim->sanim[iFrame][j].pos.z = RawAnim->rawanim[iFrame][j].pos2.z;
+		}
+		else
+		{
+			srcanim->sanim[iFrame][j].pos.z = RawAnim->rawanim[iFrame][j].pos2.z - g_bonetable[j].pos.z;
+		}*/
+
+
+		//VectorCopy(RawAnim->rawanim[iFrame][j].pos2- srcanim->sanim[iFrame][j].pos, srcanim->sanim[iFrame][j].pos);
+	}
+#endif
+
+	for (int j = 0; j < g_numbones; j++)
+	{
+		//s_compressed_t* psrcdata = &srcanim->anim[w][j];
+
+
+		flag[j] |= STUDIO_FRAME_ANIM_ROT2;
+		framelength += sizeof(Quaternion48S);
+
+
+		flag[j] |= STUDIO_FRAME_ANIM_POS2;
+		framelength += sizeof(Vector);
+
+#if 0
+		if (psrcdata->num[3] == 0 && psrcdata->num[4] == 0 && psrcdata->num[5] == 0)
+		{
+			printf("state1\n");
+			// no change
+		}
+		else if (psrcdata->num[3] <= 2 && psrcdata->num[4] <= 2 && psrcdata->num[5] <= 2)
+		{
+			printf("state2\n");
+			flag[j] |= STUDIO_FRAME_CONST_ROT2;
+			Quaternion q;
+			QuaternionCopy(RawAnim->rawanim[iFrame][j].qrot2, q);
+			//QuaternionCopy(srcanim->sanim[iFrame][j].qrot, q);
+			//AngleQuaternion( srcanim->sanim[iFrame][j].rot, q );
+			*((Quaternion48S*)pData) = q;
+			pData += sizeof(Quaternion48S);
+		}
+		else
+		{
+			printf("state3\n");
+			flag[j] |= STUDIO_FRAME_ANIM_ROT2;
+			framelength += sizeof(Quaternion48S);
+		}
+
+		if (psrcdata->num[0] == 0 && psrcdata->num[1] == 0 && psrcdata->num[2] == 0)
+		{
+			printf("state4\n");
+			// no change
+		}
+		else if (psrcdata->num[0] <= 2 && psrcdata->num[1] <= 2 && psrcdata->num[2] <= 2)
+		{
+			// single frame
+			if (g_bAnimblockHighRes)
+			{
+				printf("state5\n");
+				flag[j] |= STUDIO_FRAME_CONST_POS2;
+
+				//*((Vector*)pData) = g_bonetable[j].pos - RawAnim->rawanim[iFrame][j].pos2;
+				*((Vector*)pData) = srcanim->sanim[iFrame][j].pos;
+				//*((Vector*)pData) = RawAnim->rawanim[iFrame][j].pos2;
+				pData += sizeof(Vector);
+			}
+			else
+			{
+				printf("state6\n");
+				flag[j] |= STUDIO_FRAME_CONST_POS;
+				//*((Vector*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
+				*((Vector48*)pData) = srcanim->sanim[iFrame][j].pos;
+
+				//*((Vector48*)pData) = RawAnim->rawanim[iFrame][j].pos2;
+
+				pData += sizeof(Vector48);
+			}
+		}
+		else
+		{
+			// multiple frames
+			if (g_bAnimblockHighRes)
+			{
+				printf("state7\n");
+				flag[j] |= STUDIO_FRAME_ANIM_POS2;
+				framelength += sizeof(Vector);
+			}
+			else
+			{
+
+				printf("state8\n");
+				flag[j] |= STUDIO_FRAME_ANIM_POS;
+				framelength += sizeof(Vector48);
+			}
+		}
+#endif
+	}
+
+	ALIGN4(pData);
+
+	printf("framelength %d\n", framelength);
+	// write raw data
+	destframeanim->frameoffset = pData - (byte*)destframeanim;
+	destframeanim->framelength = framelength;
+
+	int iStartFrame = 0;
+	int iEndFrame = srcanim->numframes - 1;
+
+	if (srcanim->sectionframes > 0)
+	{
+		iStartFrame = MIN(w * srcanim->sectionframes, srcanim->numframes - 1);
+		iEndFrame = MIN((w + 1) * srcanim->sectionframes, srcanim->numframes - 1);
+	}
+
+	/*
+	printf("%s (%d : %d %d):\n", srcanim->name, srcanim->numframes, iStartFrame, iEndFrame );
+	for (int j = 0; j < g_numbones; j++)
+	{
+		s_compressed_t *psrcdata = &srcanim->anim[w][j];
+
+		printf(" %2d : %3d %3d %3d %3d %3d %3d\n", j, psrcdata->num[0], psrcdata->num[1], psrcdata->num[2], psrcdata->num[3], psrcdata->num[4], psrcdata->num[5] );
+	}
+	*/
+
+
+
+
+	printf("iStartFrame %d\n", iStartFrame);
+	printf("iEndFrame %d\n", iEndFrame);
+	for (iFrame = iStartFrame; iFrame <= iEndFrame; iFrame++)
+	{
+		for (int j = 0; j < g_numbones; j++)
+		{
+			if (flag[j] & STUDIO_FRAME_ANIM_ROT2)
+			{
+
+				Quaternion write_q;
+				//QuaternionCopy(srcanim->sanim[iFrame][j].qrot, write_q);
+				QuaternionCopy(RawAnim->rawanim[iFrame][j].qrot2, write_q);
+				*((Quaternion48S*)pData) = write_q;
+				pData += sizeof(Quaternion48S);
+			}
+
+			//s_bone_t* psrcdata = &srcanim->sanim[iFrame][j];
+			//Vector PosVector = psrcdata->pos2;
+
+			if (flag[j] & STUDIO_FRAME_ANIM_POS)
+			{
+				//*((Vector48*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
+				//*((Vector48*)pData) = srcanim->sanim[iFrame][j].pos;
+
+				*((Vector48*)pData) = RawAnim->rawanim[iFrame][j].pos2;
+				pData += sizeof(Vector48);
+			}
+			else if (flag[j] & STUDIO_FRAME_ANIM_POS2)
+			{
+				//*((Vector48*)pData) = g_bonetable[j].pos-RawAnim->rawanim[iFrame][j].pos2;
+				//*((Vector*)pData) = srcanim->sanim[iFrame][j].pos;
+
+				*((Vector*)pData) = RawAnim->rawanim[iFrame][j].pos2;
+
+				pData += sizeof(Vector);
+			}
+		}
+	}
+
+	ALIGN4(pData);
 }
 
 
