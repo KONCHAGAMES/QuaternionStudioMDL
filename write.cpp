@@ -1380,12 +1380,10 @@ void oWriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destani
 
 		if (psrcdata->num[3] == 0 && psrcdata->num[4] == 0 && psrcdata->num[5] == 0)
 		{
-			printf("state1\n");
 			// no change
 		}
 		else if (psrcdata->num[3] <= 2 && psrcdata->num[4] <= 2 && psrcdata->num[5] <= 2)
 		{
-			printf("state2\n");
 			flag[j] |= STUDIO_FRAME_CONST_ROT2;
 			Quaternion q;
 			QuaternionCopy(RawAnim->rawanim[iFrame][j].qrot2, q);
@@ -1396,7 +1394,6 @@ void oWriteFrameAnimationData(s_animation_t* srcanim, mstudioanimdesc_t* destani
 		}
 		else
 		{
-			printf("state3\n");
 			flag[j] |= STUDIO_FRAME_ANIM_ROT2;
 			framelength += sizeof( Quaternion48S );
 		}
