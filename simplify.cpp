@@ -8201,10 +8201,11 @@ static void ProcessIKRules( )
 // CompressAnimations
 //-----------------------------------------------------------------------------
 
-static void zCompressAnimations()
+static void CompressAnimations()
 {
 	// 2025
 	// IDK HOW IT WORKS, BUT IT STILL USES EULERS
+	// UPDATE: I REMOVE SOME SHIT. Probably this func should be removed.
 
 
 	int i, j, k, n, m;
@@ -8363,7 +8364,7 @@ static void zCompressAnimations()
 					//pcount->num.valid = 100;
 					//pcount->num.total = 100;
 					
-					printf("Num %d \n", panim->anim[w][j].num[k]);
+					//printf("Num %d \n", panim->anim[w][j].num[k]);
 
 					if (false)
 					//if (panim->anim[w][j].num[k] == 2 && value[0] == 0)
@@ -8390,7 +8391,7 @@ static void zCompressAnimations()
 
 
 
-static void CompressAnimations( )
+static void oCompressAnimations( )
 {
 	// 2025
 	// IDK HOW IT WORKS, BUT IT STILL USES EULERS
