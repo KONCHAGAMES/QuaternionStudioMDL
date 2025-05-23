@@ -96,6 +96,10 @@ bool g_bVerifyOnly = false;
 bool g_bUseBoneInBBox = true;
 bool g_bLockBoneLengths = false;
 bool g_bDefineBonesLockedByDefault = true;
+
+bool g_OutputDirOverwrite = false;
+char g_OutputDir[1024];
+
 int g_minLod = 0;
 bool g_bFastBuild = false;
 int g_numAllowedRootLODs = 0;
@@ -371,6 +375,7 @@ void MdlError( const char *fmt, ... )
 
 		// undescriptive errors in batch processes could be anonymous
 		printf("ERROR: Aborted Processing on '%s'\n", g_outname);
+
 
 		strcpy( fileName, gamedir );
 		strcat( fileName, "models/" );	
@@ -11725,6 +11730,7 @@ void UsageAndExit()
 		"[-basedir]\n"
 		"[-tempcontent]\n"
 		"[-nop4]\n"
+		"[-outputdir] - overwrite output directory for .mdl files\n"
 		);
 }
 
@@ -12086,6 +12092,15 @@ bool CStudioMDLApp::ParseArguments()
 			continue;
 		}
 
+		if (!Q_stricmp(pArgv, "-outputdir"))
+		{
+			const char* pOutputDir = CommandLine()->GetParm(++i);
+			V_strncpy(g_OutputDir, pOutputDir, sizeof(g_OutputDir));
+			strcat(g_OutputDir, "/");
+			g_OutputDirOverwrite = true;
+			continue;
+		}
+
 		if (!Q_stricmp( pArgv, "-fastbuild"))
 		{
 			g_bFastBuild = true;
@@ -12171,6 +12186,18 @@ bool CStudioMDLApp::ParseArguments()
 			}
 		}
 	}	
+
+
+
+	if (!g_OutputDirOverwrite)
+	{
+		MdlWarning("-outputdir null");
+		return false;
+	}
+	else
+	{
+		printf("%s \n", g_OutputDir);
+	}
 
 	if ( i >= argc )
 	{
@@ -12337,6 +12364,10 @@ int CStudioMDLApp::Main()
 
 	ParseGameInfo();
 
+	if (g_OutputDirOverwrite)
+	{
+		strcpy(gamedir, g_OutputDir);
+	}
 	if (!g_quiet)
 	{
 		printf("qdir:    \"%s\"\n", qdir );
