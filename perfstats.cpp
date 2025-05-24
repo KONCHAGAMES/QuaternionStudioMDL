@@ -96,7 +96,7 @@ void SpewPerfStats( studiohdr_t *pStudioHdr, const char *pFilename, unsigned int
 	studiohwdata_t					studioHWData;
 	int								vvdSize = 0;
 	
-	const char						*prefix[] = { ".dx90.vtx", ".dx80.vtx", ".sw.vtx" };
+	const char						*prefix[] = { ".dx90.vtx", ".dx80.vtx" /*".sw.vtx"*/ };
 	const int						numVtxFiles = ( g_gameinfo.bSupportsDX8 && !g_bFastBuild ) ? ARRAYSIZE( prefix ) : 1;
 	bool							bExtraData = (pStudioHdr->flags & STUDIOHDR_FLAGS_EXTRA_VERTEX_DATA) != 0;
 

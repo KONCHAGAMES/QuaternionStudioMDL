@@ -5099,7 +5099,7 @@ bool FixupToSortedLODVertexes(studiohdr_t *pStudioHdr)
 	int								VtxLen;
 	int								i;
 	
-	const char						*vtxPrefixes[] = { ".dx90.vtx", ".dx80.vtx", ".sw.vtx" };
+	const char						*vtxPrefixes[] = { ".dx90.vtx", ".dx80.vtx" /*".sw.vtx"*/ };
 	const int						numPrefixes = ( g_gameinfo.bSupportsDX8 && !g_bFastBuild ) ? ARRAYSIZE( vtxPrefixes ) : 1;
 	const int						idxPrefixLodUsage = ( g_gameinfo.bSupportsDX8 && !g_bFastBuild ) ? 1 : 0;
 
@@ -5542,7 +5542,7 @@ bool Clamp_RootLOD( studiohdr_t *phdr )
 	char	tmpFileName[260];
 	int		i;
 	
-	const char		*vtxPrefixes[] = { ".dx90.vtx", ".dx80.vtx", ".sw.vtx" };
+	const char		*vtxPrefixes[] = { ".dx90.vtx", ".dx80.vtx" /*".sw.vtx"*/ };
 	const int		numPrefixes = ( g_gameinfo.bSupportsDX8 && !g_bFastBuild ) ? ARRAYSIZE( vtxPrefixes ) : 1;
 	bool			bExtraData = (phdr->flags & STUDIOHDR_FLAGS_EXTRA_VERTEX_DATA) != 0;
 

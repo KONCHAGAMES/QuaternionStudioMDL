@@ -12282,15 +12282,15 @@ void ParseGameInfo()
 	
 	GameInfo_t gameinfoDefault;
 	gameinfoDefault.bSupportsXBox360 = false;
-	gameinfoDefault.bSupportsDX8 = true;
+	gameinfoDefault.bSupportsDX8 = false;
 	
 	KeyValues *pKeyValues = new KeyValues( "gameinfo.txt" );
 	if ( pKeyValues != NULL )
 	{
 		if ( g_pFileSystem && pKeyValues->LoadFromFile( g_pFileSystem, "gameinfo.txt" ) )
 		{
-			g_gameinfo.bSupportsXBox360		=	!!pKeyValues->GetInt( "SupportsXBox360", (int) gameinfoDefault.bSupportsXBox360 );
-			g_gameinfo.bSupportsDX8			=	!!pKeyValues->GetInt( "SupportsDX8", (int) gameinfoDefault.bSupportsDX8 );
+			//g_gameinfo.bSupportsXBox360		=	!!pKeyValues->GetInt( "SupportsXBox360", (int) gameinfoDefault.bSupportsXBox360 );
+			//g_gameinfo.bSupportsDX8			=	!!pKeyValues->GetInt( "SupportsDX8", (int) gameinfoDefault.bSupportsDX8 );
 			bParsed = true;
 		}
 		pKeyValues->deleteThis();

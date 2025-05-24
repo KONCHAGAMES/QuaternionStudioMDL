@@ -4412,6 +4412,7 @@ got_one:
 		strcat( filename, g_outname );
 		Q_StripExtension( filename, filename, sizeof( filename ) );
 
+#if 0
 		if ( g_gameinfo.bSupportsDX8 && !g_bFastBuild )
 		{
 			strcpy( tmpFileName, filename );
@@ -4429,6 +4430,7 @@ got_one:
 				512,	// bones/strip
 				tmpFileName, glViewFilename );
 		}
+#endif
 
 		if ( g_gameinfo.bSupportsDX8 && !g_bFastBuild )
 		{
