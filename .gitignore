@@ -1,2 +1,12 @@
 /Release
 /Debug
+/_vpc_
+*.vcxproj
+*.code-workspace
+*.filters
+*.vpc_cache
+*.vpc_crc
+*.code-workspace
+*.vpc
+*.user
+
