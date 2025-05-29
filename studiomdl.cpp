@@ -11679,8 +11679,53 @@ bool HandleMdlReport( int &returnValue )
 	}
 }
 
+
+// Just copy of CSGO QuaternionAngle
+void TryQuatToAngle(const Quaternion& q, QAngle& angles)
+{
+	Assert(s_bMathlibInitialized);
+	Assert(q.IsValid());
+
+	float m11, m12, m13, m23, m33;
+
+	m11 = (2.0f * q.w * q.w) + (2.0f * q.x * q.x) - 1.0f;
+	m12 = (2.0f * q.x * q.y) + (2.0f * q.w * q.z);
+	m13 = (2.0f * q.x * q.z) - (2.0f * q.w * q.y);
+	m23 = (2.0f * q.y * q.z) + (2.0f * q.w * q.x);
+	m33 = (2.0f * q.w * q.w) + (2.0f * q.z * q.z) - 1.0f;
+
+	// FIXME: this code has a singularity near PITCH +-90
+	angles[YAW] = RAD2DEG(atan2(m12, m11));
+	angles[PITCH] = RAD2DEG(asin(-m13));
+	angles[ROLL] = RAD2DEG(atan2(m23, m33));
+
+	Assert(angles.IsValid());
+}
+
+void TestQuatAngles(Quaternion &q)
+{
+	QAngle ang;
+	TryQuatToAngle(q, ang);
+
+	printf("Quat (%f, %f, %f, %f)\n\tRad (%f, %f, %f)\n", q[0], q[1], q[2], q[3], ang[0], ang[1], ang[2]);
+}
+void TestQuaternions()
+{
+	printf("\n");
+	TestQuatAngles(Quaternion(0.006594, 0.709065, 0.704852, 0.001609));
+	TestQuatAngles(Quaternion(0.006627, 0.711527, 0.707297, 0.001603));
+	TestQuatAngles(Quaternion(0.006588, 0.707423, 0.703223, 0.001613));
+	printf("\n");
+}
+
 void UsageAndExit()
 {
+
+	/*if (true)
+	{
+		TestQuaternions();
+	}*/
+
 	MdlError( "Bad or missing options\n"
 #ifdef MDLCOMPILE
 		"usage: mdlcompile [options] <file.mc>\n"
