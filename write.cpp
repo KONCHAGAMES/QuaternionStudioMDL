@@ -285,7 +285,7 @@ static void WriteBoneInfo( studiohdr_t *phdr )
 
 		pbone[i].rotscale[0] = 1;
 		pbone[i].rotscale[1] = 1;
-		pbone[i].rotscale[2] = 1
+		pbone[i].rotscale[2] = 1;
 
 		
 		//printf("%f %f f\n", pbone[i].posscale[0], pbone[i].posscale[1], pbone[i].posscale[2]);
